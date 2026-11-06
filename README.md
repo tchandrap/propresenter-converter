@@ -1,3 +1,5 @@
+<p align="center"><img src="app/renderer/logo.png" width="128" alt="SlideBridge logo"></p>
+
 # SlideBridge: ProPresenter converter to MP4 and PDF
 
 Convert a ProPresenter playlist item (a song, the announcements, a liturgy slide, a whole playlist) into an

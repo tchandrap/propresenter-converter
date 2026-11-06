@@ -36,7 +36,7 @@ cd "$ROOT/app"
 npm ci
 ./node_modules/.bin/electron-packager . SlideBridge --platform=darwin --arch="$ARCH" \
   --out "$BUILD/app-out" --overwrite \
-  --app-bundle-id io.github.tchandrap.slidebridge --app-version "$VERSION" \
+  --icon assets/icon.icns --app-bundle-id io.github.tchandrap.slidebridge --app-version "$VERSION" \
   --extra-resource="$BUILD/engine-dist/pp2mp4-engine" --extra-resource="$BUILD/rtf2png"
 APP="$BUILD/app-out/SlideBridge-darwin-$ARCH/SlideBridge.app"
 codesign --force --deep --sign - "$APP"        # ad-hoc signature only: not notarized (no Apple developer account)

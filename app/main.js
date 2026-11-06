@@ -160,7 +160,7 @@ ipcMain.handle('engine-info', () => USE_BUNDLED
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1280, height: 820, minWidth: 980, minHeight: 620, title: 'SlideBridge',
+    width: 1280, height: 820, minWidth: 980, minHeight: 620, title: 'SlideBridge', icon: path.join(__dirname, 'assets', 'icon.icns'),
     backgroundColor: '#1c1c1f',
     webPreferences: { preload: path.join(__dirname, 'preload.js'), contextIsolation: true, nodeIntegration: false, sandbox: true },
   });
