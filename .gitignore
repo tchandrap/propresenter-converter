@@ -1,0 +1,15 @@
+# build output and local environments
+build/
+dist/
+.venv/
+venv/
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
+# local test material and personal smoke tests (never commit real playlists or media)
+app/smoke.js
+test-out/
+*.proplaylist
+*.pro
+*.dmg

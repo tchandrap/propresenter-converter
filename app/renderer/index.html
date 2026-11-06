@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src file: data:; style-src 'self'; script-src 'self'">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SlideBridge</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+  <aside id="side">
+    <div class="brand">SlideBridge<br><span>ProPresenter converter to MP4 / PDF</span></div>
+    <div class="side-h">Sources</div>
+    <div id="sources"></div>
+    <button id="open-pl" class="btn ghost wide">Open .proplaylist file…</button>
+    <button id="refresh" class="btn ghost wide">Refresh</button>
+    <div class="side-h">Playlists</div>
+    <input id="filter" class="input" type="search" placeholder="Filter playlists">
+    <div id="tree"></div>
+  </aside>
+
+  <main id="main">
+    <nav id="tabs">
+      <button class="tab on" data-tab="playlist">Playlist items</button>
+      <button class="tab" data-tab="placeholders">Placeholders <span id="ph-count" class="pill"></span></button>
+      <button class="tab" data-tab="help">Not in the list?</button>
+    </nav>
+
+    <section id="view-playlist" class="view on">
+      <div class="cols">
+        <div class="col items">
+          <div class="col-h"><span id="pl-title">Pick a playlist</span>
+            <span class="spacer"></span>
+            <button id="sel-all" class="link">Select all</button><button id="sel-none" class="link">None</button></div>
+          <div id="items" class="list"></div>
+        </div>
+        <div class="col preview">
+          <div class="col-h"><span id="pv-title">Preview</span><span class="spacer"></span><span id="pv-meta" class="muted"></span></div>
+          <div id="pv" class="pv"><div class="empty">Click an item to see its slides the way ProPresenter shows them.</div></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-placeholders" class="view">
+      <div class="ph-head">
+        <input id="ph-filter" class="input" type="search" placeholder="Filter placeholders or playlists">
+        <label class="chk"><input id="ph-empty" type="checkbox"> only empty placeholders</label>
+        <span class="muted" id="ph-src"></span>
+      </div>
+      <div id="ph-table" class="list"></div>
+    </section>
+
+    <section id="view-help" class="view">
+      <div class="help" id="help"></div>
+    </section>
+
+    <footer id="bar">
+      <div class="bar-row">
+        <div class="field">
+          <span class="lbl">Format</span>
+          <label class="radio"><input type="radio" name="fmt" value="mp4"> MP4</label>
+          <label class="radio"><input type="radio" name="fmt" value="pdf"> PDF</label>
+          <label class="radio"><input type="radio" name="fmt" value="both"> MP4 + PDF</label>
+        </div>
+        <div class="field grow">
+          <span class="lbl">Save to</span>
+          <button id="pick-out" class="btn">Choose folder…</button>
+          <span id="out-path" class="path" title=""></span>
+        </div>
+        <div class="field">
+          <span class="lbl" title="ProPresenter themes are not stored in the files, so text-only slides need a stand-in background">Background</span>
+          <button id="pick-bg" class="btn ghost">Choose…</button>
+          <button id="clear-bg" class="link" hidden>clear</button>
+          <span id="bg-name" class="path small"></span>
+        </div>
+        <button id="make" class="btn primary" disabled>Make 0 items</button>
+        <button id="cancel" class="btn danger" hidden>Cancel</button>
+      </div>
+      <div class="bar-row opts">
+        <div class="field">
+          <span class="lbl" title="How long each picture stays before the next slide. Slides that already have a timer in ProPresenter keep it, unless you tick the box.">Picture time</span>
+          <input id="pic-sec" class="input num" type="number" min="1" max="600" step="1" value="5"> <span class="muted">seconds per picture</span>
+          <label class="chk" title="Use this time for every picture-only slide, replacing the timers set in ProPresenter"><input id="pic-override" type="checkbox"> replace ProPresenter timers</label>
+        </div>
+        <label class="chk" title="After a video ends, go straight to the next slide (no extra hold on the last frame)"><input id="no-vhold" type="checkbox"> after a video, go straight to the next slide</label>
+      </div>
+      <div id="prog" class="prog" hidden>
+        <div class="prog-bar"><div id="prog-fill"></div></div>
+        <div id="prog-text" class="muted"></div>
+      </div>
+      <div id="result" class="result" hidden></div>
+    </footer>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
