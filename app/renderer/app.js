@@ -14,7 +14,7 @@ const h = (tag, props, ...kids) => {
 
 const LIB = '';                           // source id for ProPresenter's own library
 const S = {
-  cfg: { format: 'mp4', outdir: '', bg: '', recent: [], pictureSeconds: 5, override: false, noVideoHold: true },
+  cfg: { mp4: true, pdf: false, outdir: '', bg: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true },
   source: LIB,                            // '' or a .proplaylist path
   trees: {},                              // source -> { tree, label, error }
   playlist: null,                         // the selected playlist node
@@ -29,7 +29,8 @@ const S = {
 const setKey = (idx) => `${S.source}|${S.playlist ? S.playlist.uuid : ''}|${idx}`;
 const settingsFor = (idx) => S.slideSettings[setKey(idx)] || {};
 const baseName = (p) => p.split('/').pop();
-const timing = () => ({ pictureSeconds: S.cfg.pictureSeconds, override: !!S.cfg.override, noVideoHold: !!S.cfg.noVideoHold });
+const timing = () => ({ pictureSeconds: S.cfg.pictureSeconds, overrideAll: !!S.cfg.overrideAll, allSeconds: S.cfg.allSeconds, noVideoHold: !!S.cfg.noVideoHold });
+const formatValue = () => (S.cfg.mp4 && S.cfg.pdf ? 'both' : S.cfg.pdf ? 'pdf' : 'mp4');
 const flatPlaylists = (nodes, path = []) => nodes.flatMap((n) => n.type === 'folder' ? flatPlaylists(n.children, [...path, n.name]) : [{ ...n, folderPath: path }]);
 
 // ------------------------------------------------------------------ sources and tree
@@ -149,6 +150,13 @@ async function focusItem(it, quiet) {
   if (seq !== S.previewSeq) return;
   pv.classList.remove('busy');
   if (r.error) { pv.replaceChildren(h('div', { class: 'note err', text: r.error })); return; }
+  S.pv = { it, r };
+  drawPreview(it, r, scroll);
+}
+
+// Seconds boxes sit in each slide's label bar. The PDF picture control (slider + seconds) shows only when PDF is ticked.
+function drawPreview(it, r, scroll) {
+  const pv = $('pv');
   const total = r.total_seconds;
   $('pv-meta').textContent = `${r.slides.length} slides · ${Math.floor(total / 60)}:${String(Math.round(total % 60)).padStart(2, '0')} · ${r.subtitle}`;
   const standin = r.slides.some((s) => /stand-in/.test(s.desc));
@@ -156,13 +164,19 @@ async function focusItem(it, quiet) {
   const cur = settingsFor(it.index);
   const change = (n, key, val) => {
     const all = { ...S.slideSettings }; const k = setKey(it.index);
+    if (key === 'seconds' && S.cfg.overrideAll) {            // editing one slide ends "same time for every slide" but keeps the rest as they are
+      const frozen = { ...(all[k] || {}) };
+      for (const s of r.slides) if (s.kind !== 'audio') frozen[s.n] = { ...(frozen[s.n] || {}), seconds: s.seconds };
+      all[k] = frozen;
+      S.cfg = { ...S.cfg, overrideAll: false }; window.pp.cfgSet({ overrideAll: false }); updateMake();
+    }
     all[k] = { ...(all[k] || {}), [n]: { ...((all[k] || {})[n] || {}), [key]: val } };
     S.slideSettings = all;
     clearTimeout(changeTimer);
     changeTimer = setTimeout(() => focusItem(it, true), 700);
   };
-  const num = (value, min, max, title, onch) => {
-    const i = h('input', { class: 'input mini', type: 'number', min, max, step: 0.5, value, title });
+  const numIn = (cls, value, min, max, step, title, onch) => {
+    const i = h('input', { class: cls, type: 'number', min, max, step, value, title });
     i.onchange = () => { const v = Math.max(min, Math.min(max, Number(i.value))); if (Number.isFinite(v)) { i.value = v; onch(v); } };
     return i;
   };
@@ -170,26 +184,30 @@ async function focusItem(it, quiet) {
     const col = s.color || '#3a3a40';
     const rgb = [1, 3, 5].map((i) => parseInt(col.slice(i, i + 2), 16));
     const fg = rgb.reduce((a, b) => a + b, 0) > 450 ? '#000' : '#fff';
+    const secs = s.kind === 'audio' ? h('span', { class: 's', text: s.seconds ? s.seconds + 's' : '' })
+      : h('span', { class: 's', title: 'How long this slide stays on screen in the MP4. A video shorter than this holds its last frame; longer is cut.' },
+        numIn('secs', s.seconds, 0.5, 3600, 0.5, 'Seconds on screen', (v) => change(s.n, 'seconds', v)), 's');
     const ctl = [];
-    if (s.kind !== 'audio') {
-      ctl.push(h('label', { class: 'c', title: 'How long this slide stays on screen in the MP4. A video shorter than this holds its last frame; longer is cut.' },
-        'Shown for ', num(s.seconds, 0.5, 3600, 'Seconds on screen', (v) => change(s.n, 'seconds', v)), ' s'));
-    }
-    if ((s.kind === 'video' || s.kind === 'slidevideo') && s.vlen > 0) {
-      ctl.push(h('label', { class: 'c', title: 'Which moment of the video is the picture in the PDF (and in this preview). The video is ' + s.vlen + ' s long.' },
-        'PDF picture at ', num(s.poster == null ? 0 : s.poster, 0, Math.max(0, Math.floor((s.vlen - 0.1) * 2) / 2), 'Seconds into the video', (v) => change(s.n, 'poster', v)), ' s of ' + s.vlen + ' s'));
+    if (S.cfg.pdf && (s.kind === 'video' || s.kind === 'slidevideo') && s.vlen > 0) {
+      const max = Math.max(0, Math.floor((s.vlen - 0.1) * 10) / 10), val = s.poster == null ? 0 : Math.min(max, s.poster);
+      const rng = h('input', { class: 'tl', type: 'range', min: 0, max, step: 0.1, value: val, title: 'Drag to choose which moment of the video is the PDF picture' });
+      const box = numIn('input mini', val, 0, max, 0.1, 'Seconds into the video', (v) => { rng.value = v; change(s.n, 'poster', v); });
+      rng.oninput = () => { box.value = rng.value; };
+      rng.onchange = () => change(s.n, 'poster', Number(rng.value));
+      ctl.push(h('div', { class: 'c' }, 'PDF picture at ', box, ' s of ' + s.vlen + ' s'), h('div', { class: 'c' }, rng));
     }
     grid.append(h('div', { class: 'slide' },
-      h('img', { src: 'file://' + encodeURI(s.file).replace(/#/g, '%23') + '?' + Date.now(), alt: s.name, loading: 'lazy' }),
-      h('div', { class: 'lab', style: `background:${col};color:${fg}` }, h('b', { text: String(s.n) }), h('span', { class: 't', text: s.name }), h('span', { class: 's', text: s.seconds ? s.seconds + 's' : '' })),
+      h('img', { src: 'file://' + encodeURI(s.file).replace(/#/g, '%23'), alt: s.name, loading: 'lazy' }),
+      h('div', { class: 'lab', style: `background:${col};color:${fg}` }, h('b', { text: String(s.n) }), h('span', { class: 't', text: s.name }), secs),
       ctl.length ? h('div', { class: 'ctl' }, ...ctl) : null));
   }
   const notes = [];
   if (standin) notes.push(h('div', { class: 'note warn', text: 'ProPresenter themes are not stored in the files, so slides that only have text are shown on a dark stand-in background. Choose a Background below (e.g. your theme video) to use that instead; the MP4 / PDF will use it too.' }));
   if (Object.keys(cur).length) notes.push(h('div', { class: 'note' }, 'Custom times set on this item. ', h('button', { class: 'link', text: 'Reset to ProPresenter times', onclick: () => { const all = { ...S.slideSettings }; delete all[setKey(it.index)]; S.slideSettings = all; focusItem(it, true); } })));
   pv.replaceChildren(...notes, grid);
-  pv.scrollTop = scroll;
+  pv.scrollTop = scroll || 0;
 }
+const redrawPreview = () => { if (S.pv && S.pv.it.index === S.focus) drawPreview(S.pv.it, S.pv.r, $('pv').scrollTop); };
 
 // ------------------------------------------------------------------ placeholders tab
 async function loadPlaceholders(force) {
@@ -265,17 +283,18 @@ document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.d
 function updateMake() {
   const n = S.selected.size;
   const btn = $('make');
-  const fmt = S.cfg.format;
+  const anyFmt = S.cfg.mp4 || S.cfg.pdf;
   btn.textContent = n === 1 ? 'Make 1 item' : `Make ${n} items`;
-  btn.disabled = S.busy || n === 0 || !S.cfg.outdir || !fmt;
-  btn.title = !n ? 'Tick at least one item' : !S.cfg.outdir ? 'Choose an output folder first' : '';
-  document.querySelectorAll('input[name=fmt]').forEach((r) => { r.checked = r.value === fmt; r.disabled = S.busy; });
+  btn.disabled = S.busy || n === 0 || !S.cfg.outdir || !anyFmt;
+  btn.title = !n ? 'Tick at least one item' : !S.cfg.outdir ? 'Choose an output folder first' : !anyFmt ? 'Tick MP4 or PDF' : '';
+  $('fmt-mp4').checked = !!S.cfg.mp4; $('fmt-pdf').checked = !!S.cfg.pdf; $('fmt-mp4').disabled = $('fmt-pdf').disabled = S.busy;
   const parts = (S.cfg.outdir || '').split('/').filter(Boolean);
   $('out-path').textContent = S.cfg.outdir ? (parts.length > 2 ? '…/' + parts.slice(-2).join('/') : S.cfg.outdir) : 'no folder chosen yet'; $('out-path').title = S.cfg.outdir || '';
   $('bg-name').textContent = S.cfg.bg ? baseName(S.cfg.bg) : 'stand-in (dark)'; $('clear-bg').hidden = !S.cfg.bg;
   if (document.activeElement !== $('pic-sec')) $('pic-sec').value = S.cfg.pictureSeconds;
-  $('pic-override').checked = !!S.cfg.override; $('no-vhold').checked = !!S.cfg.noVideoHold;
-  for (const id of ['pic-sec', 'pic-override', 'no-vhold']) $(id).disabled = S.busy;
+  if (document.activeElement !== $('all-sec')) $('all-sec').value = S.cfg.allSeconds;
+  $('all-on').checked = !!S.cfg.overrideAll; $('no-vhold').checked = !!S.cfg.noVideoHold;
+  for (const id of ['pic-sec', 'all-on', 'all-sec', 'no-vhold']) $(id).disabled = S.busy;
 }
 
 // timing options: saved, and the open preview is rebuilt so its total time follows
@@ -287,10 +306,23 @@ function timingChanged(patch) {
   timingTimer = setTimeout(() => { if (S.focus && S.playlist) focusItem(S.playlist.items.find((i) => i.index === S.focus)); }, 500);
 }
 $('pic-sec').onchange = () => { const v = Math.max(1, Math.min(600, Math.round(Number($('pic-sec').value) || 5))); $('pic-sec').value = v; timingChanged({ pictureSeconds: v }); };
-$('pic-override').onchange = () => timingChanged({ override: $('pic-override').checked });
+$('all-sec').onchange = () => { const v = Math.max(0.5, Math.min(3600, Number($('all-sec').value) || 10)); $('all-sec').value = v; timingChanged({ allSeconds: v }); };
+$('all-on').onchange = () => {
+  if ($('all-on').checked) {                               // ticking applies the time to every slide: forget the times set one by one
+    const all = {};
+    for (const [k, slides] of Object.entries(S.slideSettings)) {
+      const kept = {};
+      for (const [n, v] of Object.entries(slides)) { const { seconds, ...rest } = v; if (Object.keys(rest).length) kept[n] = rest; }
+      if (Object.keys(kept).length) all[k] = kept;
+    }
+    S.slideSettings = all;
+  }
+  timingChanged({ overrideAll: $('all-on').checked });
+};
 $('no-vhold').onchange = () => timingChanged({ noVideoHold: $('no-vhold').checked });
 
-document.querySelectorAll('input[name=fmt]').forEach((r) => { r.onchange = async () => { S.cfg = await window.pp.cfgSet({ format: r.value }); updateMake(); }; });
+$('fmt-mp4').onchange = async () => { S.cfg = await window.pp.cfgSet({ mp4: $('fmt-mp4').checked }); updateMake(); };
+$('fmt-pdf').onchange = async () => { S.cfg = await window.pp.cfgSet({ pdf: $('fmt-pdf').checked }); updateMake(); redrawPreview(); };
 $('pick-out').onclick = async () => { const d = await window.pp.pickFolder(S.cfg.outdir); if (d) { S.cfg = await window.pp.cfgSet({ outdir: d }); updateMake(); } };
 const refocus = () => { if (S.focus && S.playlist) focusItem(S.playlist.items.find((i) => i.index === S.focus)); };
 $('pick-bg').onclick = async () => { const f = await window.pp.pickBackground(); if (f) { S.cfg = await window.pp.cfgSet({ bg: f }); updateMake(); refocus(); } };
@@ -319,7 +351,7 @@ $('make').onclick = async () => {
   S.busy = true; updateMake();
   $('cancel').hidden = false; $('prog').hidden = false; $('result').hidden = true; $('prog-fill').style.width = '0';
   $('prog-text').textContent = 'Starting…';
-  const results = await window.pp.convert({ proplaylist: S.source || null, playlist: S.playlist.uuid, items, format: S.cfg.format, outdir: S.cfg.outdir, bg: S.cfg.bg || '', timing: timing() });
+  const results = await window.pp.convert({ proplaylist: S.source || null, playlist: S.playlist.uuid, items, format: formatValue(), outdir: S.cfg.outdir, bg: S.cfg.bg || '', timing: timing() });
   S.busy = false; $('cancel').hidden = true; updateMake();
   showResults(results);
 };
@@ -346,7 +378,6 @@ function showResults(results) {
 // ------------------------------------------------------------------ start
 (async function init() {
   S.cfg = { ...S.cfg, ...(await window.pp.cfgGet()) };
-  if (!S.cfg.format) S.cfg.format = 'mp4';
   const info = await window.pp.engineInfo();
   renderHelp(); renderSources(); updateMake();
   if (!info.ok) { $('tree').replaceChildren(h('div', { class: 'note err', text: 'Engine not found: ' + info.engine })); return; }

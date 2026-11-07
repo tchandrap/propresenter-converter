@@ -929,6 +929,8 @@ def plan_slides(slides, a, want_posters):
         desc, still = "", None
         st = (getattr(a, "settings", None) or {}).get(i, {})      # per-slide choices from the app: seconds, poster
         want_s = float(st["seconds"]) if st.get("seconds") else None
+        if want_s is None and getattr(a, "all_seconds", None) and sl["kind"] not in ("audio", "empty"):
+            want_s = float(a.all_seconds)                  # one time for every slide (a slide's own choice wins)
         sl["vlen"], sl["poster"] = 0.0, None
         if sl["kind"] == "slide":
             use_bg = a.bg if (a.bg and needs_bg(sl)) else None
@@ -1202,6 +1204,7 @@ def main():
     ap.add_argument("--fade", type=float, default=None, help="dissolve seconds between slides (default: the presentation's own, else 0.7)")
     ap.add_argument("--hold", type=float, default=5.0, help="seconds for slides that have no timer and no video (default 5)")
     ap.add_argument("--picture-seconds", type=float, default=None, metavar="N", help="seconds each picture-only slide stays on screen (replaces the slide's own timer)")
+    ap.add_argument("--all-seconds", type=float, default=None, metavar="N", help="show every slide for N seconds (videos are cut, or hold their last frame); per-slide settings win")
     ap.add_argument("--no-video-hold", action="store_true", help="after a video, go straight to the next slide (ignore the cue's hold on the last frame)")
     ap.add_argument("--slide-settings", metavar="FILE", help='JSON {"3": {"seconds": 10, "poster": 4.5}}: per-slide seconds on screen and the video frame used for stills / PDF')
     ap.add_argument("--max-hold", type=float, default=30.0, help="longest a video-background slide without a timer may play (default 30)")

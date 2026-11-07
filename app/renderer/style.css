@@ -85,7 +85,9 @@ button, input { font: inherit; color: inherit; }
 .slide .lab { display: flex; gap: 6px; font-size: 11px; padding: 4px 6px; color: #fff; white-space: nowrap; overflow: hidden; }
 .slide .lab b { font-weight: 700; }
 .slide .lab .t { overflow: hidden; text-overflow: ellipsis; flex: 1; }
-.slide .lab .s { opacity: .8; }
+.slide .lab .s { opacity: .8; display: flex; align-items: center; gap: 3px; }
+.slide .lab .secs { width: 52px; padding: 0 4px; font-size: 11px; text-align: right; border: 1px solid rgba(0,0,0,.25); border-radius: 4px; background: rgba(255,255,255,.88); color: #111; }
+.slide .ctl .tl { flex: 1; min-width: 0; accent-color: var(--accent); }
 .note { margin: 0 0 10px; padding: 8px 10px; border-radius: 6px; background: var(--panel2); color: var(--muted); font-size: 12px; }
 .note.err { color: var(--danger); border: 1px solid var(--danger); background: transparent; }
 .note.warn { color: var(--warn); border: 1px solid var(--warn); background: transparent; }

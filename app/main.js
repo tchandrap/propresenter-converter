@@ -25,8 +25,14 @@ let cancelled = false;
 
 // ---- small config file (last output folder, format, background, recent .proplaylist files)
 const cfgPath = () => path.join(app.getPath('userData'), 'config.json');
-const CFG_DEFAULTS = { format: 'mp4', outdir: '', bg: '', recent: [], pictureSeconds: 5, override: false, noVideoHold: true };
-function readCfg() { try { return { ...CFG_DEFAULTS, ...JSON.parse(fs.readFileSync(cfgPath(), 'utf8')) }; } catch { return { ...CFG_DEFAULTS }; } }
+const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', bg: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
+function readCfg() {
+  try {
+    const saved = JSON.parse(fs.readFileSync(cfgPath(), 'utf8'));
+    if (saved.format && saved.mp4 === undefined) { saved.mp4 = saved.format !== 'pdf'; saved.pdf = saved.format !== 'mp4'; }   // older settings: one format
+    return { ...CFG_DEFAULTS, ...saved };
+  } catch { return { ...CFG_DEFAULTS }; }
+}
 function writeCfg(c) { try { fs.mkdirSync(path.dirname(cfgPath()), { recursive: true }); fs.writeFileSync(cfgPath(), JSON.stringify(c, null, 1)); } catch { /* ignore */ } }
 
 // ---- run the engine; collects stdout/stderr, forwards @@PROGRESS lines
@@ -71,10 +77,9 @@ function srcArgs(proplaylist) { return proplaylist ? ['--proplaylist', proplayli
 function timingArgs(t) {
   const a = [];
   const s = Number(t && t.pictureSeconds);
-  if (s > 0 && s <= 600) {
-    a.push('--hold', String(s));
-    if (t.override) a.push('--picture-seconds', String(s));
-  }
+  if (s > 0 && s <= 600) a.push('--hold', String(s));
+  const all = Number(t && t.allSeconds);
+  if (t && t.overrideAll && all > 0 && all <= 3600) a.push('--all-seconds', String(all));
   if (t && t.noVideoHold) a.push('--no-video-hold');
   return a;
 }

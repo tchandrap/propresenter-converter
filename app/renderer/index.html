@@ -59,9 +59,8 @@
       <div class="bar-row">
         <div class="field">
           <span class="lbl">Format</span>
-          <label class="radio"><input type="radio" name="fmt" value="mp4"> MP4</label>
-          <label class="radio"><input type="radio" name="fmt" value="pdf"> PDF</label>
-          <label class="radio"><input type="radio" name="fmt" value="both"> MP4 + PDF</label>
+          <label class="radio"><input type="checkbox" id="fmt-mp4"> MP4</label>
+          <label class="radio"><input type="checkbox" id="fmt-pdf"> PDF</label>
         </div>
         <div class="field grow">
           <span class="lbl">Save to</span>
@@ -81,7 +80,10 @@
         <div class="field">
           <span class="lbl" title="How long each picture stays before the next slide. Slides that already have a timer in ProPresenter keep it, unless you tick the box.">Picture time</span>
           <input id="pic-sec" class="input num" type="number" min="1" max="600" step="1" value="5"> <span class="muted">seconds per picture</span>
-          <label class="chk" title="Use this time for every picture-only slide, replacing the timers set in ProPresenter"><input id="pic-override" type="checkbox"> replace ProPresenter timers</label>
+        </div>
+        <div class="field">
+          <label class="chk" title="Show every slide for the same time, replacing ProPresenter's timers and video lengths. Editing one slide's time unticks this and keeps the rest."><input id="all-on" type="checkbox"> use</label>
+          <input id="all-sec" class="input num" type="number" min="0.5" max="3600" step="0.5" value="10"> <span class="muted">seconds for every slide</span>
         </div>
         <label class="chk" title="After a video ends, go straight to the next slide (no extra hold on the last frame)"><input id="no-vhold" type="checkbox"> after a video, go straight to the next slide</label>
       </div>
