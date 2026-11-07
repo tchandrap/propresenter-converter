@@ -37,10 +37,11 @@ const baseName = (p) => p.split('/').pop();
 const fmtS = (v) => `${Math.round(v * 10) / 10}s`;
 const ICONS = {
   clock: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4.5l3 1.5M9.5 3h5"/></svg>',
+  lock: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   photo: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3 3-2.5 4 3.5"/></svg>',
 };
 const icon = (name) => { const e = h('span', { class: 'ico' }); e.innerHTML = ICONS[name]; return e; };
-function timeControl({ value, min, max, step = 0.5, hard = max, total = null, title = '', ico = null, commit }) {
+function timeControl({ value, min, max, step = 0.5, hard = max, total = null, title = '', ico = null, icoEl = null, commit }) {
   const field = h('input', { class: 'pp-field', type: 'text', inputmode: 'decimal', value: fmtS(value), title });
   const rng = h('input', { class: 'pp-range', type: 'range', min, max, step, value: Math.min(max, value), title });
   const paint = () => rng.style.setProperty('--p', (max > min ? ((rng.value - min) / (max - min)) * 100 : 0) + '%');
@@ -55,12 +56,12 @@ function timeControl({ value, min, max, step = 0.5, hard = max, total = null, ti
   };
   rng.oninput = () => { cur = Number(rng.value); field.value = fmtS(cur); paint(); };
   rng.onchange = () => commit(Number(rng.value));
-  const wrap = h('span', { class: 'pp-time' }, ico ? icon(ico) : null, field, rng, total != null ? h('span', { class: 'pp-total', text: fmtS(total), title: 'Length of the video' }) : null);
+  const wrap = h('span', { class: 'pp-time' }, icoEl || (ico ? icon(ico) : null), field, rng, total != null ? h('span', { class: 'pp-total', text: fmtS(total), title: 'Length of the video' }) : null);
   wrap.set = (v) => { if (document.activeElement === field) return; cur = v; field.value = fmtS(v); rng.value = Math.min(max, v); paint(); };
   wrap.field = field;
   return wrap;
 }
-const timing = () => ({ pictureSeconds: S.cfg.pictureSeconds, overrideAll: !!S.cfg.overrideAll, allSeconds: S.cfg.allSeconds, noVideoHold: !!S.cfg.noVideoHold });
+const timing = () => ({ pictureSeconds: 5, overrideAll: !!S.cfg.overrideAll, allSeconds: S.cfg.allSeconds, noVideoHold: !!S.cfg.noVideoHold });
 const formatValue = () => (S.cfg.mp4 && S.cfg.pdf ? 'both' : S.cfg.pdf ? 'pdf' : 'mp4');
 const flatPlaylists = (nodes, path = []) => nodes.flatMap((n) => n.type === 'folder' ? flatPlaylists(n.children, [...path, n.name]) : [{ ...n, folderPath: path }]);
 
@@ -197,12 +198,6 @@ function drawPreview(it, r, scroll) {
   const cur = settingsFor(it.index);
   const change = (n, key, val) => {
     const all = { ...S.slideSettings }; const k = setKey(it.index);
-    if (key === 'seconds' && S.cfg.overrideAll) {            // editing one slide ends "same time for every slide" but keeps the rest as they are
-      const frozen = { ...(all[k] || {}) };
-      for (const s of r.slides) if (s.kind !== 'audio') frozen[s.n] = { ...(frozen[s.n] || {}), seconds: s.seconds };
-      all[k] = frozen;
-      S.cfg = { ...S.cfg, overrideAll: false }; window.pp.cfgSet({ overrideAll: false }); updateMake();
-    }
     all[k] = { ...(all[k] || {}), [n]: { ...((all[k] || {})[n] || {}), [key]: val } };
     S.slideSettings = all;
     clearTimeout(changeTimer);
@@ -215,7 +210,20 @@ function drawPreview(it, r, scroll) {
     const isVid = (s.kind === 'video' || s.kind === 'slidevideo') && s.vlen > 0;
     const ctl = [];
     if (S.cfg.mp4 && s.kind !== 'audio') {            // seconds on screen: MP4 only
-      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'clock', value: s.seconds, min: 0.5, max: isVid ? Math.max(1, s.vlen) : 60, step: 0.5, hard: 3600, total: isVid ? s.vlen : null,
+      const own = !!(cur[s.n] && cur[s.n].seconds);
+      let lockBtn = null;
+      if (own) {
+        lockBtn = h('button', { class: 'pp-lock', type: 'button', title: 'This slide has its own time. Click to go back to the shared time.' });
+        lockBtn.innerHTML = ICONS.lock;
+        lockBtn.onclick = () => {
+          const all = { ...S.slideSettings }; const k = setKey(it.index); const one = { ...((all[k] || {})[s.n] || {}) };
+          delete one.seconds;
+          all[k] = { ...(all[k] || {}) }; if (Object.keys(one).length) all[k][s.n] = one; else delete all[k][s.n];
+          if (!Object.keys(all[k]).length) delete all[k];
+          S.slideSettings = all; focusItem(it, true);
+        };
+      }
+      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'clock', icoEl: lockBtn, value: s.seconds, min: 0.5, max: isVid ? Math.max(1, s.vlen) : 60, step: 0.5, hard: 3600, total: isVid ? s.vlen : null,
         title: 'How long this slide stays on screen in the MP4. A video shorter than this holds its last frame; longer is cut. Type a number or drag.', commit: (v) => change(s.n, 'seconds', v) })));
     }
     if (S.cfg.pdf && isVid) {                           // which moment of the video becomes the PDF page
@@ -343,27 +351,14 @@ function buildOpts() {
   const box = $('pv-opts');
   const check = (id, text, title) => h('label', { class: 'pp-check', title }, h('input', { id, type: 'checkbox' }), h('span', { class: 'box', text: '✓' }), text);
   const row = (label, ...kids) => h('div', { class: 'pp-row' }, h('span', { class: 'k', text: label + ':' }), h('div', { class: 'v' }, ...kids));
-  const pic = timeControl({ value: S.cfg.pictureSeconds, min: 1, max: 60, step: 1, hard: 600, title: 'How long a picture stays before the next slide, when ProPresenter gave it no timer.', commit: (v) => timingChanged({ pictureSeconds: v }) });
   const all = timeControl({ value: S.cfg.allSeconds, min: 0.5, max: 120, step: 0.5, hard: 3600, title: 'The time used for every slide when the box is ticked.', commit: (v) => timingChanged({ allSeconds: v }) });
   box.replaceChildren(
     h('div', { class: 'pp-top' }, h('span', { class: 'pp-h', text: 'MP4 timing' }), h('span', { class: 'tot', id: 'pv-total' })),
-    row('Picture time', pic),
-    row('Every slide', check('all-on', 'Same time for every slide', "Show every slide for the same time, replacing ProPresenter's timers and video lengths. Editing one slide's time unticks this and keeps the rest."), all),
+    row('Every slide', check('all-on', 'Same time for every slide', "Show every slide for the same time, replacing ProPresenter's timers and video lengths. A slide whose time you change by hand keeps its own time (shown with a lock); click the lock to release it."), all),
     row('After a video', check('no-vhold', 'Go straight to the next slide', 'After a video ends, do not hold its last frame')));
-  $('all-on').onchange = () => {
-    if ($('all-on').checked) {                               // ticking applies the time to every slide: forget the times set one by one
-      const keep = {};
-      for (const [k, slides] of Object.entries(S.slideSettings)) {
-        const kept = {};
-        for (const [n, v] of Object.entries(slides)) { const { seconds, ...rest } = v; if (Object.keys(rest).length) kept[n] = rest; }
-        if (Object.keys(kept).length) keep[k] = kept;
-      }
-      S.slideSettings = keep;
-    }
-    timingChanged({ overrideAll: $('all-on').checked });
-  };
+  $('all-on').onchange = () => timingChanged({ overrideAll: $('all-on').checked });
   $('no-vhold').onchange = () => timingChanged({ noVideoHold: $('no-vhold').checked });
-  return { pic, all };
+  return { all };
 }
 const O = buildOpts();
 
@@ -383,10 +378,10 @@ function updateMake() {
   const parts = (S.cfg.outdir || '').split('/').filter(Boolean);
   $('out-path').textContent = S.cfg.outdir ? 'Last export: ' + (parts.length > 2 ? '…/' + parts.slice(-2).join('/') : S.cfg.outdir) : 'You choose the folder when you export';
   $('out-path').title = (S.cfg.outdir ? 'Last export folder: ' + S.cfg.outdir + '\n\n' : '') + 'You do not type a file name. Each file is named after its item, for example “261108 Warta.mp4” and “261108 Warta.pdf”. A file with the same name in the folder you choose is replaced.';
-  O.pic.set(S.cfg.pictureSeconds); O.all.set(S.cfg.allSeconds);
+  O.all.set(S.cfg.allSeconds);
   $('all-on').checked = !!S.cfg.overrideAll; $('no-vhold').checked = !!S.cfg.noVideoHold;
   for (const id of ['all-on', 'no-vhold']) $(id).disabled = S.busy;
-  for (const w of [O.pic, O.all]) w.field.disabled = w.field.nextSibling.disabled = S.busy;
+  O.all.field.disabled = O.all.field.nextSibling.disabled = S.busy;
 }
 
 // timing options: saved, and the open preview is rebuilt so its total time follows

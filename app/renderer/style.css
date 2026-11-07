@@ -194,3 +194,5 @@ button, input { font: inherit; color: inherit; }
 .note-line { font-size: 12px; }
 .settings .hint { margin: 14px 0 0; font-size: 12px; max-width: 640px; }
 .settings code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
+.pp-lock { display: inline-flex; padding: 0; border: 0; background: none; color: var(--pp-blue); cursor: pointer; }
+.pp-lock:hover { color: var(--pp-text); }
