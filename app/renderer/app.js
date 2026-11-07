@@ -14,7 +14,7 @@ const h = (tag, props, ...kids) => {
 
 const LIB = '';                           // source id for ProPresenter's own library
 const S = {
-  cfg: { mp4: true, pdf: false, outdir: '', bg: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true },
+  cfg: { mp4: true, pdf: false, outdir: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true },
   source: LIB,                            // '' or a .proplaylist path
   trees: {},                              // source -> { tree, label, error }
   playlist: null,                         // the selected playlist node
@@ -146,7 +146,7 @@ async function focusItem(it, quiet) {
   const scroll = pv.scrollTop;
   if (quiet) pv.classList.add('busy'); else pv.replaceChildren(h('div', { class: 'empty', text: 'Building preview… (videos and many slides can take a few seconds)' }));
   const seq = ++S.previewSeq;
-  const r = await window.pp.preview({ proplaylist: S.source || null, playlist: S.playlist.uuid, index: it.index, bg: S.cfg.bg || '', timing: timing(), settings: settingsFor(it.index) });
+  const r = await window.pp.preview({ proplaylist: S.source || null, playlist: S.playlist.uuid, index: it.index, timing: timing(), settings: settingsFor(it.index) });
   if (seq !== S.previewSeq) return;
   pv.classList.remove('busy');
   if (r.error) { pv.replaceChildren(h('div', { class: 'note err', text: r.error })); return; }
@@ -202,7 +202,7 @@ function drawPreview(it, r, scroll) {
       ctl.length ? h('div', { class: 'ctl' }, ...ctl) : null));
   }
   const notes = [];
-  if (standin) notes.push(h('div', { class: 'note warn', text: 'ProPresenter themes are not stored in the files, so slides that only have text are shown on a dark stand-in background. Choose a Background below (e.g. your theme video) to use that instead; the MP4 / PDF will use it too.' }));
+  if (standin) notes.push(h('div', { class: 'note warn', text: 'ProPresenter themes are not stored in the files, so slides that only have text are shown on a dark stand-in background. The MP4 / PDF use the same stand-in.' }));
   if (Object.keys(cur).length) notes.push(h('div', { class: 'note' }, 'Custom times set on this item. ', h('button', { class: 'link', text: 'Reset to ProPresenter times', onclick: () => { const all = { ...S.slideSettings }; delete all[setKey(it.index)]; S.slideSettings = all; focusItem(it, true); } })));
   pv.replaceChildren(...notes, grid);
   pv.scrollTop = scroll || 0;
@@ -268,7 +268,7 @@ function renderHelp() {
       h('li', { text: 'Drag the presentation from the Library onto that placeholder so it is linked. A placeholder with nothing linked shows as EMPTY here and cannot be converted.' }),
       h('li', { text: 'Save in ProPresenter (it saves on its own after a moment) and click Refresh here.' })),
     h('h3', { text: 'The theme background is missing in text slides' }),
-    h('p', { text: 'ProPresenter keeps themes outside the presentation files. Text-only slides are therefore drawn on a dark stand-in background. Use “Background → Choose…” to pick the theme video or picture instead.' }),
+    h('p', { text: 'ProPresenter keeps themes outside the presentation files. Text-only slides are therefore drawn on a dark stand-in background.' }),
     h('h3', { text: 'Safety' }),
     h('p', {}, 'This app only ', h('b', { text: 'reads' }), ' ProPresenter’s files. It never changes anything in the ProPresenter folder. Videos from a .proplaylist are unpacked into a cache folder (', h('code', { text: '~/Library/Caches/pp2mp4' }), ') that you can delete at any time.'));
 }
@@ -285,12 +285,16 @@ function updateMake() {
   const btn = $('make');
   const anyFmt = S.cfg.mp4 || S.cfg.pdf;
   btn.textContent = n === 1 ? 'Make 1 item' : `Make ${n} items`;
-  btn.disabled = S.busy || n === 0 || !S.cfg.outdir || !anyFmt;
-  btn.title = !n ? 'Tick at least one item' : !S.cfg.outdir ? 'Choose an output folder first' : !anyFmt ? 'Tick MP4 or PDF' : '';
+  const why = [];
+  if (!n) why.push('Tick at least one item in the list.');
+  if (!S.cfg.outdir) why.push('Choose the folder to save into.');
+  if (!anyFmt) why.push('Tick MP4 or PDF.');
+  btn.disabled = S.busy || why.length > 0;
+  $('make-wrap').classList.toggle('blocked', !S.busy && why.length > 0);
+  $('make-tip').replaceChildren(h('b', { text: 'Not ready yet' }), ...why.map((w) => h('div', { text: w })));
   $('fmt-mp4').checked = !!S.cfg.mp4; $('fmt-pdf').checked = !!S.cfg.pdf; $('fmt-mp4').disabled = $('fmt-pdf').disabled = S.busy;
   const parts = (S.cfg.outdir || '').split('/').filter(Boolean);
-  $('out-path').textContent = S.cfg.outdir ? (parts.length > 2 ? '…/' + parts.slice(-2).join('/') : S.cfg.outdir) : 'no folder chosen yet'; $('out-path').title = S.cfg.outdir || '';
-  $('bg-name').textContent = S.cfg.bg ? baseName(S.cfg.bg) : 'stand-in (dark)'; $('clear-bg').hidden = !S.cfg.bg;
+  $('out-path').textContent = S.cfg.outdir ? (parts.length > 2 ? '…/' + parts.slice(-2).join('/') : S.cfg.outdir) : 'no folder chosen yet'; $('out-path').title = (S.cfg.outdir ? 'Saved in: ' + S.cfg.outdir + '\n\n' : '') + 'You do not type a file name. Each file is named after its item, for example “261108 Warta.mp4” and “261108 Warta.pdf”. A file with the same name in this folder is replaced.'; $('pick-out').title = $('out-path').title;
   if (document.activeElement !== $('pic-sec')) $('pic-sec').value = S.cfg.pictureSeconds;
   if (document.activeElement !== $('all-sec')) $('all-sec').value = S.cfg.allSeconds;
   $('all-on').checked = !!S.cfg.overrideAll; $('no-vhold').checked = !!S.cfg.noVideoHold;
@@ -325,8 +329,6 @@ $('fmt-mp4').onchange = async () => { S.cfg = await window.pp.cfgSet({ mp4: $('f
 $('fmt-pdf').onchange = async () => { S.cfg = await window.pp.cfgSet({ pdf: $('fmt-pdf').checked }); updateMake(); redrawPreview(); };
 $('pick-out').onclick = async () => { const d = await window.pp.pickFolder(S.cfg.outdir); if (d) { S.cfg = await window.pp.cfgSet({ outdir: d }); updateMake(); } };
 const refocus = () => { if (S.focus && S.playlist) focusItem(S.playlist.items.find((i) => i.index === S.focus)); };
-$('pick-bg').onclick = async () => { const f = await window.pp.pickBackground(); if (f) { S.cfg = await window.pp.cfgSet({ bg: f }); updateMake(); refocus(); } };
-$('clear-bg').onclick = async () => { S.cfg = await window.pp.cfgSet({ bg: '' }); updateMake(); refocus(); };
 
 $('open-pl').onclick = async () => {
   const files = await window.pp.pickProplaylist();
@@ -351,7 +353,7 @@ $('make').onclick = async () => {
   S.busy = true; updateMake();
   $('cancel').hidden = false; $('prog').hidden = false; $('result').hidden = true; $('prog-fill').style.width = '0';
   $('prog-text').textContent = 'Starting…';
-  const results = await window.pp.convert({ proplaylist: S.source || null, playlist: S.playlist.uuid, items, format: formatValue(), outdir: S.cfg.outdir, bg: S.cfg.bg || '', timing: timing() });
+  const results = await window.pp.convert({ proplaylist: S.source || null, playlist: S.playlist.uuid, items, format: formatValue(), outdir: S.cfg.outdir, timing: timing() });
   S.busy = false; $('cancel').hidden = true; updateMake();
   showResults(results);
 };

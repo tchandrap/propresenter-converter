@@ -32,7 +32,7 @@ If macOS says it is damaged, run once in Terminal: `xattr -dr com.apple.quaranti
 - Opens a `.proplaylist` file directly, or reads ProPresenter's own library.
 
 ProPresenter keeps themes outside the presentation files, so text-only slides are drawn on a dark stand-in
-background unless you choose a background video or picture in the app.
+background.
 
 ## Safety and privacy
 

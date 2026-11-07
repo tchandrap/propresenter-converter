@@ -113,6 +113,15 @@ button, input { font: inherit; color: inherit; }
 .help ol { padding-left: 20px; margin: 6px 0; } .help li { margin: 4px 0; }
 .help code { background: var(--panel2); padding: 1px 5px; border-radius: 4px; }
 
+/* options row at the top of the preview */
+.pv-opts { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--panel2); }
+.tipwrap { position: relative; display: inline-block; }
+.tipwrap .tip { display: none; position: absolute; right: 0; bottom: calc(100% + 8px); z-index: 5; width: max-content; max-width: 280px; padding: 8px 10px; border-radius: 6px;
+  background: #26272c; color: #fff; font-size: 12px; line-height: 1.4; box-shadow: 0 4px 14px rgba(0,0,0,.3); }
+.tipwrap.blocked:hover .tip { display: block; }
+.tipwrap .tip div::before { content: '• '; }
+.btn.primary:disabled { pointer-events: none; }
+
 /* bottom bar */
 #bar { border-top: 1px solid var(--line); background: var(--panel); padding: 10px 14px; }
 .bar-row { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; }

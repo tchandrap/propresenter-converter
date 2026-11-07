@@ -23,9 +23,9 @@ let win = null;
 let current = null;          // the running convert child, so it can be cancelled
 let cancelled = false;
 
-// ---- small config file (last output folder, format, background, recent .proplaylist files)
+// ---- small config file (last output folder, formats, recent .proplaylist files)
 const cfgPath = () => path.join(app.getPath('userData'), 'config.json');
-const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', bg: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
+const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
 function readCfg() {
   try {
     const saved = JSON.parse(fs.readFileSync(cfgPath(), 'utf8'));
@@ -100,18 +100,17 @@ ipcMain.handle('placeholders', async (_e, proplaylist) => {
   try { return JSON.parse(r.out); } catch { return { error: 'The engine returned unreadable data.' }; }
 });
 
-ipcMain.handle('preview', async (_e, { proplaylist, playlist, index, bg, timing, settings }) => {
-  const key = crypto.createHash('sha1').update(JSON.stringify([proplaylist || '', playlist, index, bg || '', timing || null, settings || null])).digest('hex').slice(0, 16);
+ipcMain.handle('preview', async (_e, { proplaylist, playlist, index, timing, settings }) => {
+  const key = crypto.createHash('sha1').update(JSON.stringify([proplaylist || '', playlist, index, timing || null, settings || null])).digest('hex').slice(0, 16);
   const dir = path.join(PREVIEW_ROOT, key);
   fs.rmSync(dir, { recursive: true, force: true });
   const args = [...srcArgs(proplaylist), '--playlist', playlist, '--item', String(index), '--preview', dir, '--json', ...timingArgs(timing), ...settingsArgs(settings)];
-  if (bg) args.push('--bg', bg);
   const r = await runEngine(args);
   if (r.code !== 0) return { error: lastLine(r.err) || lastLine(r.out) || 'Could not build the preview.' };
   try { return JSON.parse(r.out); } catch { return { error: 'The engine returned unreadable data.' }; }
 });
 
-ipcMain.handle('convert', async (_e, { proplaylist, playlist, items, format, outdir, bg, timing }) => {
+ipcMain.handle('convert', async (_e, { proplaylist, playlist, items, format, outdir, timing }) => {
   cancelled = false;
   const results = [];
   fs.mkdirSync(outdir, { recursive: true });
@@ -121,7 +120,6 @@ ipcMain.handle('convert', async (_e, { proplaylist, playlist, items, format, out
     const args = [...srcArgs(proplaylist), '--playlist', playlist, '--item', String(it.index), '--outdir', outdir, '--json', '--progress', ...timingArgs(timing), ...settingsArgs(it.settings)];
     if (format === 'pdf') args.push('--pdf-only');
     else if (format === 'both') args.push('--pdf');
-    if (bg) args.push('--bg', bg);
     win && win.webContents.send('progress', { n, total: items.length, name: it.name, done: 0, stage: 'starting' });
     const r = await runEngine(args, {
       track: true,
@@ -154,15 +152,6 @@ ipcMain.handle('pick-proplaylist', async () => {
     defaultPath: app.getPath('downloads'),
   });
   return r.canceled ? [] : r.filePaths.filter((p) => p.toLowerCase().endsWith('.proplaylist'));
-});
-
-ipcMain.handle('pick-background', async () => {
-  const r = await dialog.showOpenDialog(win, {
-    title: 'Choose a background video or picture for text-only slides', properties: ['openFile'],
-    filters: [{ name: 'Video / picture', extensions: ['mp4', 'mov', 'm4v', 'png', 'jpg', 'jpeg'] }],
-    defaultPath: path.join(PP_ROOT, 'Media', 'Assets'),
-  });
-  return r.canceled ? null : r.filePaths[0];
 });
 
 ipcMain.handle('reveal', (_e, p) => { if (p && fs.existsSync(p)) shell.showItemInFolder(p); });

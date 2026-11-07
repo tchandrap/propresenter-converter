@@ -37,6 +37,17 @@
         </div>
         <div class="col preview">
           <div class="col-h"><span id="pv-title">Preview</span><span class="spacer"></span><span id="pv-meta" class="muted"></span></div>
+          <div class="pv-opts">
+            <div class="field">
+              <span class="lbl" title="How long each picture stays before the next slide. Slides that already have a timer in ProPresenter keep it, unless you tick the box.">Picture time</span>
+              <input id="pic-sec" class="input num" type="number" min="1" max="600" step="1" value="5"> <span class="muted">seconds per picture</span>
+            </div>
+            <div class="field">
+              <label class="chk" title="Show every slide for the same time, replacing ProPresenter's timers and video lengths. Editing one slide's time unticks this and keeps the rest."><input id="all-on" type="checkbox"> use</label>
+              <input id="all-sec" class="input num" type="number" min="0.5" max="3600" step="0.5" value="10"> <span class="muted">seconds for every slide</span>
+            </div>
+            <label class="chk" title="After a video ends, go straight to the next slide (no extra hold on the last frame)"><input id="no-vhold" type="checkbox"> after a video, go straight to the next slide</label>
+          </div>
           <div id="pv" class="pv"><div class="empty">Click an item to see its slides the way ProPresenter shows them.</div></div>
         </div>
       </div>
@@ -67,25 +78,8 @@
           <button id="pick-out" class="btn">Choose folder…</button>
           <span id="out-path" class="path" title=""></span>
         </div>
-        <div class="field">
-          <span class="lbl" title="ProPresenter themes are not stored in the files, so text-only slides need a stand-in background">Background</span>
-          <button id="pick-bg" class="btn ghost">Choose…</button>
-          <button id="clear-bg" class="link" hidden>clear</button>
-          <span id="bg-name" class="path small"></span>
-        </div>
-        <button id="make" class="btn primary" disabled>Make 0 items</button>
+        <span id="make-wrap" class="tipwrap"><button id="make" class="btn primary" disabled>Make 0 items</button><span id="make-tip" class="tip" role="tooltip"></span></span>
         <button id="cancel" class="btn danger" hidden>Cancel</button>
-      </div>
-      <div class="bar-row opts">
-        <div class="field">
-          <span class="lbl" title="How long each picture stays before the next slide. Slides that already have a timer in ProPresenter keep it, unless you tick the box.">Picture time</span>
-          <input id="pic-sec" class="input num" type="number" min="1" max="600" step="1" value="5"> <span class="muted">seconds per picture</span>
-        </div>
-        <div class="field">
-          <label class="chk" title="Show every slide for the same time, replacing ProPresenter's timers and video lengths. Editing one slide's time unticks this and keeps the rest."><input id="all-on" type="checkbox"> use</label>
-          <input id="all-sec" class="input num" type="number" min="0.5" max="3600" step="0.5" value="10"> <span class="muted">seconds for every slide</span>
-        </div>
-        <label class="chk" title="After a video ends, go straight to the next slide (no extra hold on the last frame)"><input id="no-vhold" type="checkbox"> after a video, go straight to the next slide</label>
       </div>
       <div id="prog" class="prog" hidden>
         <div class="prog-bar"><div id="prog-fill"></div></div>
