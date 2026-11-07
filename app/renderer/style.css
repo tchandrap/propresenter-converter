@@ -90,6 +90,11 @@ button, input { font: inherit; color: inherit; }
 .note.err { color: var(--danger); border: 1px solid var(--danger); background: transparent; }
 .note.warn { color: var(--warn); border: 1px solid var(--warn); background: transparent; }
 
+.slide .ctl { background: var(--panel2); color: var(--text); padding: 5px 6px; font-size: 11px; display: flex; flex-direction: column; gap: 4px; }
+.slide .ctl .c { display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+.input.mini { width: 58px; padding: 2px 4px; text-align: right; font-size: 11px; }
+.pv.busy { opacity: .55; pointer-events: none; }
+
 /* placeholders */
 .ph-head { display: flex; gap: 14px; align-items: center; margin-bottom: 10px; }
 .ph-head .input { max-width: 340px; }

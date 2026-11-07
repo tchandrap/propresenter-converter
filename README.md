@@ -26,6 +26,9 @@ If macOS says it is damaged, run once in Terminal: `xattr -dr com.apple.quaranti
 - Makes **MP4** (1920x1080, 30 fps, with video and sound), **PDF** (one page per slide), or both.
 - You choose the output folder and how long each picture stays on screen; after a video it can go straight to
   the next slide.
+- Keeps the **text you typed on a video or picture** in ProPresenter (for example a thank-you slide) and centres it
+  the way ProPresenter does.
+- In the preview, set for each slide **how long it is shown** and, for videos, **which moment becomes the PDF picture**.
 - Opens a `.proplaylist` file directly, or reads ProPresenter's own library.
 
 ProPresenter keeps themes outside the presentation files, so text-only slides are drawn on a dark stand-in

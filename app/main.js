@@ -56,6 +56,14 @@ function runEngine(args, { onProgress, track } = {}) {
 
 function lastLine(s) { const l = s.trim().split('\n').filter(Boolean); return l[l.length - 1] || ''; }
 
+// Per-slide choices from the preview (seconds on screen, video frame for stills / PDF): passed to the engine as a JSON file.
+function settingsArgs(settings) {
+  if (!settings || !Object.keys(settings).length) return [];
+  const f = path.join(os.tmpdir(), `pp2mp4-settings-${crypto.randomBytes(6).toString('hex')}.json`);
+  fs.writeFileSync(f, JSON.stringify(settings));
+  return ['--slide-settings', f];
+}
+
 function srcArgs(proplaylist) { return proplaylist ? ['--proplaylist', proplaylist] : []; }
 
 // Timing options from the UI: seconds per picture (used for slides without their own timer, or for every
@@ -87,11 +95,11 @@ ipcMain.handle('placeholders', async (_e, proplaylist) => {
   try { return JSON.parse(r.out); } catch { return { error: 'The engine returned unreadable data.' }; }
 });
 
-ipcMain.handle('preview', async (_e, { proplaylist, playlist, index, bg, timing }) => {
-  const key = crypto.createHash('sha1').update(JSON.stringify([proplaylist || '', playlist, index, bg || '', timing || null])).digest('hex').slice(0, 16);
+ipcMain.handle('preview', async (_e, { proplaylist, playlist, index, bg, timing, settings }) => {
+  const key = crypto.createHash('sha1').update(JSON.stringify([proplaylist || '', playlist, index, bg || '', timing || null, settings || null])).digest('hex').slice(0, 16);
   const dir = path.join(PREVIEW_ROOT, key);
   fs.rmSync(dir, { recursive: true, force: true });
-  const args = [...srcArgs(proplaylist), '--playlist', playlist, '--item', String(index), '--preview', dir, '--json', ...timingArgs(timing)];
+  const args = [...srcArgs(proplaylist), '--playlist', playlist, '--item', String(index), '--preview', dir, '--json', ...timingArgs(timing), ...settingsArgs(settings)];
   if (bg) args.push('--bg', bg);
   const r = await runEngine(args);
   if (r.code !== 0) return { error: lastLine(r.err) || lastLine(r.out) || 'Could not build the preview.' };
@@ -105,7 +113,7 @@ ipcMain.handle('convert', async (_e, { proplaylist, playlist, items, format, out
   for (let n = 0; n < items.length; n++) {
     if (cancelled) { results.push({ item: items[n].name, error: 'Cancelled.' }); break; }
     const it = items[n];
-    const args = [...srcArgs(proplaylist), '--playlist', playlist, '--item', String(it.index), '--outdir', outdir, '--json', '--progress', ...timingArgs(timing)];
+    const args = [...srcArgs(proplaylist), '--playlist', playlist, '--item', String(it.index), '--outdir', outdir, '--json', '--progress', ...timingArgs(timing), ...settingsArgs(it.settings)];
     if (format === 'pdf') args.push('--pdf-only');
     else if (format === 'both') args.push('--pdf');
     if (bg) args.push('--bg', bg);

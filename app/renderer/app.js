@@ -23,8 +23,11 @@ const S = {
   phCache: {},
   busy: false,
   previewSeq: 0,
+  slideSettings: {},                      // 'source|playlist|item' -> { slide number: { seconds, poster } }
 };
 
+const setKey = (idx) => `${S.source}|${S.playlist ? S.playlist.uuid : ''}|${idx}`;
+const settingsFor = (idx) => S.slideSettings[setKey(idx)] || {};
 const baseName = (p) => p.split('/').pop();
 const timing = () => ({ pictureSeconds: S.cfg.pictureSeconds, override: !!S.cfg.override, noVideoHold: !!S.cfg.noVideoHold });
 const flatPlaylists = (nodes, path = []) => nodes.flatMap((n) => n.type === 'folder' ? flatPlaylists(n.children, [...path, n.name]) : [{ ...n, folderPath: path }]);
@@ -126,7 +129,8 @@ function renderPreviewEmpty() {
   $('pv').replaceChildren(h('div', { class: 'empty', text: 'Click an item to see its slides the way ProPresenter shows them.' }));
 }
 
-async function focusItem(it) {
+let changeTimer = null;
+async function focusItem(it, quiet) {
   S.focus = it.index; renderItems();
   const pv = $('pv'); $('pv-title').textContent = it.name; $('pv-meta').textContent = '';
   if (it.kind === 'placeholder' && it.status === 'empty') {
@@ -138,26 +142,53 @@ async function focusItem(it) {
     pv.replaceChildren(h('div', { class: 'note err', text: 'The presentation file this item points to was not found. If this playlist came from another computer, open it as a .proplaylist file instead (the files are inside it).' }));
     return;
   }
-  pv.replaceChildren(h('div', { class: 'empty', text: 'Building preview… (videos and many slides can take a few seconds)' }));
+  const scroll = pv.scrollTop;
+  if (quiet) pv.classList.add('busy'); else pv.replaceChildren(h('div', { class: 'empty', text: 'Building preview… (videos and many slides can take a few seconds)' }));
   const seq = ++S.previewSeq;
-  const r = await window.pp.preview({ proplaylist: S.source || null, playlist: S.playlist.uuid, index: it.index, bg: S.cfg.bg || '', timing: timing() });
+  const r = await window.pp.preview({ proplaylist: S.source || null, playlist: S.playlist.uuid, index: it.index, bg: S.cfg.bg || '', timing: timing(), settings: settingsFor(it.index) });
   if (seq !== S.previewSeq) return;
+  pv.classList.remove('busy');
   if (r.error) { pv.replaceChildren(h('div', { class: 'note err', text: r.error })); return; }
   const total = r.total_seconds;
   $('pv-meta').textContent = `${r.slides.length} slides · ${Math.floor(total / 60)}:${String(Math.round(total % 60)).padStart(2, '0')} · ${r.subtitle}`;
   const standin = r.slides.some((s) => /stand-in/.test(s.desc));
   const grid = h('div', { class: 'pv-grid' });
+  const cur = settingsFor(it.index);
+  const change = (n, key, val) => {
+    const all = { ...S.slideSettings }; const k = setKey(it.index);
+    all[k] = { ...(all[k] || {}), [n]: { ...((all[k] || {})[n] || {}), [key]: val } };
+    S.slideSettings = all;
+    clearTimeout(changeTimer);
+    changeTimer = setTimeout(() => focusItem(it, true), 700);
+  };
+  const num = (value, min, max, title, onch) => {
+    const i = h('input', { class: 'input mini', type: 'number', min, max, step: 0.5, value, title });
+    i.onchange = () => { const v = Math.max(min, Math.min(max, Number(i.value))); if (Number.isFinite(v)) { i.value = v; onch(v); } };
+    return i;
+  };
   for (const s of r.slides) {
     const col = s.color || '#3a3a40';
     const rgb = [1, 3, 5].map((i) => parseInt(col.slice(i, i + 2), 16));
     const fg = rgb.reduce((a, b) => a + b, 0) > 450 ? '#000' : '#fff';
+    const ctl = [];
+    if (s.kind !== 'audio') {
+      ctl.push(h('label', { class: 'c', title: 'How long this slide stays on screen in the MP4. A video shorter than this holds its last frame; longer is cut.' },
+        'Shown for ', num(s.seconds, 0.5, 3600, 'Seconds on screen', (v) => change(s.n, 'seconds', v)), ' s'));
+    }
+    if ((s.kind === 'video' || s.kind === 'slidevideo') && s.vlen > 0) {
+      ctl.push(h('label', { class: 'c', title: 'Which moment of the video is the picture in the PDF (and in this preview). The video is ' + s.vlen + ' s long.' },
+        'PDF picture at ', num(s.poster == null ? 0 : s.poster, 0, Math.max(0, Math.floor((s.vlen - 0.1) * 2) / 2), 'Seconds into the video', (v) => change(s.n, 'poster', v)), ' s of ' + s.vlen + ' s'));
+    }
     grid.append(h('div', { class: 'slide' },
-      h('img', { src: 'file://' + encodeURI(s.file).replace(/#/g, '%23'), alt: s.name, loading: 'lazy' }),
-      h('div', { class: 'lab', style: `background:${col};color:${fg}` }, h('b', { text: String(s.n) }), h('span', { class: 't', text: s.name }), h('span', { class: 's', text: s.seconds ? s.seconds + 's' : '' }))));
+      h('img', { src: 'file://' + encodeURI(s.file).replace(/#/g, '%23') + '?' + Date.now(), alt: s.name, loading: 'lazy' }),
+      h('div', { class: 'lab', style: `background:${col};color:${fg}` }, h('b', { text: String(s.n) }), h('span', { class: 't', text: s.name }), h('span', { class: 's', text: s.seconds ? s.seconds + 's' : '' })),
+      ctl.length ? h('div', { class: 'ctl' }, ...ctl) : null));
   }
   const notes = [];
   if (standin) notes.push(h('div', { class: 'note warn', text: 'ProPresenter themes are not stored in the files, so slides that only have text are shown on a dark stand-in background. Choose a Background below (e.g. your theme video) to use that instead; the MP4 / PDF will use it too.' }));
+  if (Object.keys(cur).length) notes.push(h('div', { class: 'note' }, 'Custom times set on this item. ', h('button', { class: 'link', text: 'Reset to ProPresenter times', onclick: () => { const all = { ...S.slideSettings }; delete all[setKey(it.index)]; S.slideSettings = all; focusItem(it, true); } })));
   pv.replaceChildren(...notes, grid);
+  pv.scrollTop = scroll;
 }
 
 // ------------------------------------------------------------------ placeholders tab
@@ -284,7 +315,7 @@ $('filter').oninput = renderTree;
 
 $('make').onclick = async () => {
   if (!S.playlist || !S.selected.size) return;
-  const items = S.playlist.items.filter((i) => S.selected.has(i.index)).map((i) => ({ index: i.index, name: i.name }));
+  const items = S.playlist.items.filter((i) => S.selected.has(i.index)).map((i) => ({ index: i.index, name: i.name, settings: settingsFor(i.index) }));
   S.busy = true; updateMake();
   $('cancel').hidden = false; $('prog').hidden = false; $('result').hidden = true; $('prog-fill').style.width = '0';
   $('prog-text').textContent = 'Starting…';

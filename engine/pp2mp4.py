@@ -29,7 +29,7 @@ background behind text-only slides), --json (machine-readable output), --progres
 Needs: Python 3, Pillow, numpy, an ffmpeg binary (PATH, or the `imageio-ffmpeg` package), and on macOS the
 Xcode command line tools (swiftc) for text rendering.
 """
-import argparse, json, os, re, shutil, struct, subprocess, sys, tempfile, urllib.parse, zlib
+import argparse, hashlib, json, os, re, shutil, struct, subprocess, sys, tempfile, urllib.parse, zlib
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 
@@ -322,7 +322,7 @@ def element_info(wrapper):
     if col and len(col) == 4:
         color = [c[2] for c in col]
     return dict(name=sval(first(e, 2)) or "", x=x, y=y, w=w, h=h, opacity=first(e, 5, 1.0) or 1.0,
-                rtf=rtf, color=color, media=media_path(fill) if fill else None)
+                rtf=rtf, valign=int(first(t, 6, 0) or 0) if t else 0, color=color, media=media_path(fill) if fill else None)
 
 
 def read_cue(c):
@@ -356,6 +356,9 @@ def read_cue(c):
     else:
         item["kind"] = "media"
         item["media"] = media_path(media_act)
+        # text typed on top of a video / picture cue lives in the cue's slide action
+        item["overlay"] = [e for e in (element_info(msg(k)) for k in fields(get(slide, 1), 1)) if e and e["rtf"] and rtf_plain(e["rtf"])] \
+            if slide is not None else []
         dur = first(action, 8)
         item["duration"] = float(dur) if isinstance(dur, float) and dur > 0 else None
     return item
@@ -625,7 +628,11 @@ let rep = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: w, pixelsHigh: h, 
                            hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)!
 NSGraphicsContext.saveGraphicsState()
 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-attr.draw(with: NSRect(x: 0, y: 0, width: w, height: h), options: [.usesLineFragmentOrigin])
+// a[5]: vertical alignment of the text box in ProPresenter (0 top, 1 middle, 2 bottom)
+let va = a.count > 5 ? (Int(a[5]) ?? 0) : 0
+let bh = ceil(attr.boundingRect(with: NSSize(width: CGFloat(w), height: 100000), options: [.usesLineFragmentOrigin]).height)
+let oy: CGFloat = va == 1 ? (CGFloat(h) - bh) / 2 : (va == 2 ? 0 : CGFloat(h) - bh)
+attr.draw(with: NSRect(x: 0, y: oy, width: CGFloat(w), height: bh), options: [.usesLineFragmentOrigin])
 NSGraphicsContext.restoreGraphicsState()
 try! rep.representation(using: .png, properties: [:])!.write(to: URL(fileURLWithPath: a[4]))
 '''
@@ -642,7 +649,8 @@ def swift_helper():
         return bundled
     d = os.path.join(tempfile.gettempdir(), "pp2mp4_swift")
     os.makedirs(d, exist_ok=True)
-    src, binp = os.path.join(d, "rtf2png.swift"), os.path.join(d, "rtf2png")
+    tag = hashlib.sha1(SWIFT_SRC.encode()).hexdigest()[:8]      # a new renderer source gets a new binary
+    src, binp = os.path.join(d, f"rtf2png-{tag}.swift"), os.path.join(d, f"rtf2png-{tag}")
     if not os.path.exists(binp):
         open(src, "w").write(SWIFT_SRC)
         print("[setup] compiling the text renderer (once)...", file=sys.stderr)
@@ -651,12 +659,12 @@ def swift_helper():
     return binp
 
 
-def render_text(rtf, w, h):
+def render_text(rtf, w, h, valign=0):
     w, h = max(2, int(round(w))), max(2, int(round(h)))
     with tempfile.TemporaryDirectory() as td:
         rp, op = os.path.join(td, "t.rtf"), os.path.join(td, "t.png")
         open(rp, "w", encoding="latin-1", errors="replace").write(rtf)
-        subprocess.check_call([swift_helper(), rp, str(w), str(h), op])
+        subprocess.check_call([swift_helper(), rp, str(w), str(h), op, str(int(valign))])
         return Image.open(op).convert("RGBA")
 
 
@@ -708,7 +716,7 @@ def draw_slide(sl, bg_media=None):
             paste_clipped(target, layer, x, y)
         if el["rtf"]:
             try:
-                paste_clipped(target, render_text(el["rtf"], w, h), x, y)
+                paste_clipped(target, render_text(el["rtf"], w, h, el.get("valign", 0)), x, y)
             except Exception as ex:
                 print(f"[warn] text '{el['name']}': {ex}", file=sys.stderr)
     return dict(below=np.asarray(below.convert("RGB")), vid=vid, above=(np.asarray(above) if above is not None else None))
@@ -857,12 +865,44 @@ def compose(d, vf):
     return out
 
 
+def overlay_layer(sl):
+    """Text on top of a video / picture cue -> RGBA array (H, W, 4), or None when the cue has no text."""
+    els = sl.get("overlay") or []
+    if not els:
+        return None
+    layer = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    for el in reversed(els):                           # ProPresenter lists the top layer first
+        x, y, w, h = int(round(el["x"])), int(round(el["y"])), int(round(el["w"])), int(round(el["h"]))
+        if w <= 0 or h <= 0:
+            continue
+        try:
+            paste_clipped(layer, render_text(el["rtf"], w, h, el.get("valign", 0)), x, y)
+        except Exception as ex:
+            print(f"[warn] text '{el['name']}': {ex}", file=sys.stderr)
+    return np.asarray(layer)
+
+
+def over(frame, layer):
+    if layer is None:
+        return frame
+    al = layer[..., 3:4].astype(np.float32) / 255
+    return (frame.astype(np.float32) * (1 - al) + layer[..., :3].astype(np.float32) * al).astype(np.uint8)
+
+
+def cover_frame_at(path, w, h, t):
+    """One frame of `path` at time t, scaled to cover a w x h box."""
+    cmd = [ffmpeg_bin(), "-loglevel", "error", "-ss", f"{t:.2f}", "-i", path, "-frames:v", "1",
+           "-vf", f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h}", "-f", "rawvideo", "-pix_fmt", "rgb24", "-"]
+    b = subprocess.run(cmd, capture_output=True).stdout
+    return np.frombuffer(b, np.uint8).reshape(h, w, 3) if len(b) == w * h * 3 else None
+
+
 # ---------------------------------------------------------------- picture timing
 def picture_only(sl):
     """True for a slide (or media cue) that is only a picture: no text, no video."""
     ext = lambda p: os.path.splitext(p or "")[1].lower()
     if sl["kind"] == "media":
-        return ext(sl.get("media")) in IMG_EXT
+        return ext(sl.get("media")) in IMG_EXT and not sl.get("overlay")
     if sl["kind"] != "slide":
         return False
     els = sl["elements"]
@@ -887,6 +927,9 @@ def plan_slides(slides, a, want_posters):
     for i, sl in enumerate(slides, 1):
         progress(0.1 * (i - 1) / max(1, n), f"reading slide {i}/{n}")
         desc, still = "", None
+        st = (getattr(a, "settings", None) or {}).get(i, {})      # per-slide choices from the app: seconds, poster
+        want_s = float(st["seconds"]) if st.get("seconds") else None
+        sl["vlen"], sl["poster"] = 0.0, None
         if sl["kind"] == "slide":
             use_bg = a.bg if (a.bg and needs_bg(sl)) else None
             standin = False
@@ -895,13 +938,18 @@ def plan_slides(slides, a, want_posters):
                 standin = True
             d = draw_slide(sl, use_bg)
             if d["vid"] is None:
-                sl["plan"] = ("still", d["below"], still_seconds(sl, a))
+                sl["plan"] = ("still", d["below"], want_s or still_seconds(sl, a))
                 still, desc = d["below"], "still" + (" (theme background is not in the file: dark stand-in)" if standin else "")
             else:
                 vd, _ = probe(d["vid"]["media"])
-                dur = sl["timer"] if sl["timer"] > 0 else min(vd or a.hold, a.max_hold)
+                dur = want_s or (sl["timer"] if sl["timer"] > 0 else min(vd or a.hold, a.max_hold))
                 sl["plan"] = ("slidevideo", d, dur)
-                still = compose(d, next(cover_frames(d["vid"]["media"], int(round(d["vid"]["w"])), int(round(d["vid"]["h"])), 1)))
+                vw, vh = int(round(d["vid"]["w"])), int(round(d["vid"]["h"]))
+                sl["vlen"] = vd or 0.0
+                pt = min(max(0.0, float(st.get("poster", 0.0))), max(0.0, (vd or 0) - 0.05))
+                sl["poster"] = pt
+                fr0 = cover_frame_at(d["vid"]["media"], vw, vh, pt) if pt > 0 else None
+                still = compose(d, fr0 if fr0 is not None else next(cover_frames(d["vid"]["media"], vw, vh, 1)))
                 desc = f"video background ({os.path.basename(d['vid']['media'])})"
         elif sl["kind"] in ("audio", "empty"):
             ad, _ = probe(sl["audio"]) if sl.get("audio") else (None, False)
@@ -912,15 +960,27 @@ def plan_slides(slides, a, want_posters):
             if mp and os.path.exists(mp) and os.path.splitext(mp)[1].lower() in VID_EXT:
                 vd, has_audio = probe(mp)
                 dur = sl.get("duration") or vd or a.hold
-                sl["plan"] = ("video", mp, dur, has_audio)
-                sl["vhold"] = 0.0 if a.no_video_hold else sl["timer"]      # the cue timer is a hold on the last frame
+                sl["ov"] = overlay_layer(sl)
+                if want_s:                                                  # chosen in the app: play up to that long, hold the last frame after
+                    play = min(want_s, dur)
+                    sl["plan"] = ("video", mp, play, has_audio)
+                    sl["vhold"] = max(0.0, want_s - play)
+                else:
+                    sl["plan"] = ("video", mp, dur, has_audio)
+                    sl["vhold"] = 0.0 if a.no_video_hold else sl["timer"]  # the cue timer is a hold on the last frame
+                sl["vlen"] = dur
+                pt = st.get("poster")
+                pt = min(3.0, (dur or 2) / 2) if pt is None else min(max(0.0, float(pt)), max(0.0, dur - 0.05))
+                sl["poster"] = pt
                 if want_posters:
-                    still = poster_frame(mp, min(3.0, (dur or 2) / 2))
-                desc = f"video {dur:.1f}s" + (" + audio" if has_audio else "")
+                    pf = poster_frame(mp, pt)
+                    still = over(pf, sl["ov"]) if pf is not None else None
+                desc = f"video {dur:.1f}s" + (" + text" if sl["ov"] is not None else "") + (" + audio" if has_audio else "")
             elif mp and os.path.exists(mp):
-                still = np.asarray(fit_on_black(mp))
-                sl["plan"] = ("still", still, still_seconds(sl, a))
-                desc = "image"
+                sl["ov"] = overlay_layer(sl)
+                still = over(np.asarray(fit_on_black(mp)), sl["ov"])
+                sl["plan"] = ("still", still, want_s or still_seconds(sl, a))
+                desc = "image" + (" + text" if sl["ov"] is not None else "")
             else:
                 still = np.zeros((H, W, 3), np.uint8)
                 sl["plan"] = ("still", still, still_seconds(sl, a))
@@ -1008,7 +1068,7 @@ def encode_mp4(slides, a, out):
             d, dur = plan[1], plan[2]
             frames = (compose(d, vf) for vf in cover_frames(d["vid"]["media"], int(round(d["vid"]["w"])), int(round(d["vid"]["h"])), dur))
         else:
-            frames = video_frames(plan[1], plan[2])
+            frames = (over(f, sl.get("ov")) for f in video_frames(plan[1], plan[2]))
             if plan[3]:
                 audio_segs.append((start_frame / FPS, plan[1], plan[2]))
         k, cur = 0, None
@@ -1077,7 +1137,9 @@ def slide_label(sl):
     g = "" if g.lower() == "group" else g
     nm = sl["name"] or ""
     if not nm or re.match(r"^Slide rId\d+$", nm):
-        nm = next((rtf_plain(e["rtf"]) for e in sl.get("elements", []) if e["rtf"] and rtf_plain(e["rtf"])), "")
+        nm = next((rtf_plain(e["rtf"]) for e in sl.get("elements", []) + sl.get("overlay", []) if e["rtf"] and rtf_plain(e["rtf"])), "")
+        if not nm and sl.get("media"):
+            nm = os.path.basename(sl["media"])
     return f"{g} - {nm}" if g and nm and g != nm else (g or nm or sl["kind"])
 
 
@@ -1092,6 +1154,7 @@ def make_preview(slides, title, subtitle, outdir):
         t.save(fn, quality=88)
         info.append(dict(n=i, file=fn, name=slide_label(sl), group=sl.get("group") or "", color=sl.get("group_color"),
                          kind=sl["plan"][0], desc=sl["desc"], seconds=round(sl["seconds"], 2),
+                         vlen=round(sl.get("vlen") or 0, 2), poster=None if sl.get("poster") is None else round(sl["poster"], 2),
                          transition=sl.get("transition") or 0, audio=os.path.basename(sl["audio"]) if sl.get("audio") else None))
     cols = 4
     pad, bar, head = 18, 34, 92
@@ -1140,6 +1203,7 @@ def main():
     ap.add_argument("--hold", type=float, default=5.0, help="seconds for slides that have no timer and no video (default 5)")
     ap.add_argument("--picture-seconds", type=float, default=None, metavar="N", help="seconds each picture-only slide stays on screen (replaces the slide's own timer)")
     ap.add_argument("--no-video-hold", action="store_true", help="after a video, go straight to the next slide (ignore the cue's hold on the last frame)")
+    ap.add_argument("--slide-settings", metavar="FILE", help='JSON {"3": {"seconds": 10, "poster": 4.5}}: per-slide seconds on screen and the video frame used for stills / PDF')
     ap.add_argument("--max-hold", type=float, default=30.0, help="longest a video-background slide without a timer may play (default 30)")
     ap.add_argument("--bg", help="video or image to show behind text-only slides (ProPresenter themes are not read; this stands in for the theme background)")
     ap.add_argument("--pdf", nargs="?", const="", metavar="FILE", help="also write a PDF, one page per slide (default name: '<name>.pdf')")
@@ -1152,6 +1216,12 @@ def main():
     ap.add_argument("--progress", action="store_true", help="print @@PROGRESS lines (used by the desktop app)")
     a = ap.parse_args()
     PROGRESS = a.progress
+    a.settings = {}
+    if a.slide_settings:
+        try:
+            a.settings = {int(k): v for k, v in json.load(open(a.slide_settings)).items()}
+        except Exception as ex:
+            sys.exit(f"Could not read --slide-settings: {ex}")
 
     if a.list:
         for p in sorted(all_presentations()):
