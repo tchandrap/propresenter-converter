@@ -25,6 +25,7 @@
       <button class="tab on" data-tab="playlist">Playlist items</button>
       <button class="tab" data-tab="placeholders">Placeholders <span id="ph-count" class="pill"></span></button>
       <button class="tab" data-tab="help">Not in the list?</button>
+      <button class="tab tab-right" data-tab="settings">Settings</button>
     </nav>
 
     <section id="view-playlist" class="view on">
@@ -50,6 +51,24 @@
         <span class="muted" id="ph-src"></span>
       </div>
       <div id="ph-table" class="list"></div>
+    </section>
+
+    <section id="view-settings" class="view">
+      <div class="settings">
+        <div class="pp-h">Appearance</div>
+        <div class="srow"><span class="k">Theme:</span>
+          <div class="pp-tabs" role="group" aria-label="Theme">
+            <button id="theme-light" class="pp-tab" type="button" aria-pressed="false">Light</button>
+            <button id="theme-dark" class="pp-tab" type="button" aria-pressed="false">Dark</button>
+          </div>
+        </div>
+        <div class="pp-h spaced">ProPresenter</div>
+        <div class="srow"><span class="k">Library folder:</span>
+          <div class="v"><span id="pp-path" class="pp-path"></span><button id="pp-pick" class="btn">Choose…</button><button id="pp-reset" class="btn ghost">Use default</button></div>
+        </div>
+        <div class="srow"><span class="k"></span><div id="pp-status" class="note-line"></div></div>
+        <p class="muted hint">SlideBridge looks in ProPresenter's standard folder by default. If you moved or renamed your ProPresenter workspace, choose that folder here: it is the one with <code>Libraries</code> and <code>Playlists</code> inside. SlideBridge only reads it and never changes it. Without ProPresenter on this computer, open a <code>.proplaylist</code> file instead.</p>
+      </div>
     </section>
 
     <section id="view-help" class="view">

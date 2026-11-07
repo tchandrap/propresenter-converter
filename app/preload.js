@@ -13,5 +13,7 @@ contextBridge.exposeInMainWorld('pp', {
   reveal: (p) => ipcRenderer.invoke('reveal', p),
   openPath: (p) => ipcRenderer.invoke('open-path', p),
   engineInfo: () => ipcRenderer.invoke('engine-info'),
+  ppInfo: () => ipcRenderer.invoke('pp:info'),
+  ppPick: () => ipcRenderer.invoke('pp:pick'),
   onProgress: (cb) => ipcRenderer.on('progress', (_e, p) => cb(p)),
 });

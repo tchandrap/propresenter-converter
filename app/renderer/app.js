@@ -12,6 +12,10 @@ const h = (tag, props, ...kids) => {
   return e;
 };
 
+// theme: follows the system until the user picks Light or Dark in Settings
+const applyTheme = (t) => { document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light'; };
+applyTheme(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
 const LIB = '';                           // source id for ProPresenter's own library
 const S = {
   cfg: { mp4: true, pdf: false, outdir: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true },
@@ -96,7 +100,7 @@ function renderTree() {
   const box = $('tree'); box.replaceChildren();
   const t = S.trees[S.source];
   if (!t) return;
-  if (t.error) { box.append(h('div', { class: 'note err', text: t.error })); return; }
+  if (t.error) { box.append(h('div', { class: 'note err' }, t.error, ' ', h('button', { class: 'link', text: 'Open Settings', onclick: () => showTab('settings') }))); return; }
   const q = $('filter').value.trim().toLowerCase();
   const draw = (nodes, depth) => {
     for (const n of nodes) {
@@ -298,10 +302,42 @@ function renderHelp() {
 
 // ------------------------------------------------------------------ tabs, bottom bar
 function showTab(name) {
+  if (name === 'settings') renderSettings();
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'view-' + name));
 }
 document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+
+// ------------------------------------------------------------------ settings: theme and the ProPresenter folder
+function renderSettings() {
+  const cur = document.documentElement.dataset.theme;
+  for (const t of ['light', 'dark']) { $('theme-' + t).classList.toggle('on', cur === t); $('theme-' + t).setAttribute('aria-pressed', cur === t ? 'true' : 'false'); }
+  window.pp.ppInfo().then((i) => {
+    $('pp-path').textContent = i.root; $('pp-path').title = i.root;
+    $('pp-reset').disabled = !i.custom;
+    const st = $('pp-status');
+    st.className = 'note-line ' + (i.found ? 'ok' : 'warn');
+    st.textContent = i.found
+      ? (i.custom ? '✓ Found. Using the folder you chose.' : '✓ Found. Using ProPresenter’s standard folder.')
+      : (i.custom ? 'No ProPresenter files found in this folder. Choose another folder or use the default.' : 'ProPresenter’s standard folder was not found on this computer. If ProPresenter keeps its files elsewhere, choose that folder; otherwise open a .proplaylist file.');
+  });
+}
+async function setPpRoot(root) {
+  S.cfg = await window.pp.cfgSet({ ppRoot: root });
+  delete S.trees[LIB]; delete S.phCache[LIB];
+  if (S.source === LIB) { S.playlist = null; S.selected.clear(); S.focus = null; await selectSource(LIB); }
+  renderSettings();
+}
+for (const t of ['light', 'dark']) {
+  $('theme-' + t).onclick = async () => { applyTheme(t); S.cfg = await window.pp.cfgSet({ theme: t }); renderSettings(); };
+}
+$('pp-pick').onclick = async () => {
+  const r = await window.pp.ppPick();
+  if (!r) return;
+  if (r.error) { const st = $('pp-status'); st.className = 'note-line bad'; st.textContent = r.error; return; }
+  await setPpRoot(r.root);
+};
+$('pp-reset').onclick = () => setPpRoot('');
 
 function buildOpts() {
   const box = $('pv-opts');
@@ -421,6 +457,7 @@ function showResults(results) {
 // ------------------------------------------------------------------ start
 (async function init() {
   S.cfg = { ...S.cfg, ...(await window.pp.cfgGet()) };
+  if (S.cfg.theme) applyTheme(S.cfg.theme);
   const info = await window.pp.engineInfo();
   renderHelp(); renderSources(); updateMake();
   if (!info.ok) { $('tree').replaceChildren(h('div', { class: 'note err', text: 'Engine not found: ' + info.engine })); return; }

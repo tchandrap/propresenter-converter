@@ -473,7 +473,7 @@ class Source:
             self.bundle = None
             self.label = "ProPresenter library"
             if not os.path.exists(PLAYLIST_FILE):
-                sys.exit(f"ProPresenter playlist file not found: {PLAYLIST_FILE}")
+                sys.exit(f"ProPresenter playlist file not found: {PLAYLIST_FILE}. In SlideBridge open Settings to point it at your ProPresenter folder, or open a .proplaylist file.")
             self.tree = read_playlist_tree(open(PLAYLIST_FILE, "rb").read())
 
     def playlists(self):
@@ -1189,11 +1189,12 @@ def make_preview(slides, title, subtitle, outdir):
 
 # ---------------------------------------------------------------- command line
 def main():
-    global PROGRESS
+    global PROGRESS, PP_ROOT, LIB_ROOT, PLAYLIST_FILE
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("name", nargs="?", help="presentation name, e.g. 'Sunday Service'")
     ap.add_argument("--library", help="only look in libraries whose folder name contains this text")
     ap.add_argument("--list", action="store_true", help="list presentations in the ProPresenter library")
+    ap.add_argument("--pp-root", metavar="DIR", help="ProPresenter workspace folder (the one that holds Libraries and Playlists); default: ~/Library/Application Support/RenewedVision/ProPresenter/UserWorkspaces/ProPresenter")
     ap.add_argument("--proplaylist", metavar="FILE", help="read playlists from this .proplaylist file (no import needed)")
     ap.add_argument("--playlists", action="store_true", help="show the playlist tree with numbered items")
     ap.add_argument("--placeholders", action="store_true", help="list every placeholder and the playlist it belongs to")
@@ -1219,6 +1220,10 @@ def main():
     ap.add_argument("--progress", action="store_true", help="print @@PROGRESS lines (used by the desktop app)")
     a = ap.parse_args()
     PROGRESS = a.progress
+    if a.pp_root:
+        PP_ROOT = os.path.abspath(os.path.expanduser(a.pp_root))
+        LIB_ROOT = os.path.join(PP_ROOT, "Libraries")
+        PLAYLIST_FILE = os.path.join(PP_ROOT, "Playlists", "Library")
     a.settings = {}
     if a.slide_settings:
         try:

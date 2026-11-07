@@ -1,6 +1,6 @@
 // Electron main process: owns the Python engine (pp2mp4.py) and everything that touches files.
 // The engine only READS ProPresenter's files; this app never writes into the ProPresenter folder.
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, nativeTheme } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -17,7 +17,10 @@ const BUNDLED_ENGINE = process.resourcesPath ? path.join(process.resourcesPath, 
 const BUNDLED_RTF = process.resourcesPath ? path.join(process.resourcesPath, 'rtf2png') : '';
 const USE_BUNDLED = app.isPackaged && fs.existsSync(BUNDLED_ENGINE);
 const PREVIEW_ROOT = path.join(os.tmpdir(), 'pp2mp4-app-previews');
-const PP_ROOT = path.join(os.homedir(), 'Library/Application Support/RenewedVision/ProPresenter/UserWorkspaces/ProPresenter');
+const PP_DEFAULT = path.join(os.homedir(), 'Library/Application Support/RenewedVision/ProPresenter/UserWorkspaces/ProPresenter');
+// A ProPresenter workspace folder holds Libraries and Playlists. Accept the folder itself or a parent a level or two above it.
+const isWorkspace = (d) => { try { return fs.existsSync(path.join(d, 'Libraries')) || fs.existsSync(path.join(d, 'Playlists')); } catch { return false; } };
+const resolveWorkspace = (d) => [d, path.join(d, 'ProPresenter'), path.join(d, 'UserWorkspaces', 'ProPresenter'), path.join(d, 'ProPresenter', 'UserWorkspaces', 'ProPresenter')].find(isWorkspace) || null;
 
 let win = null;
 let current = null;          // the running convert child, so it can be cancelled
@@ -25,7 +28,7 @@ let cancelled = false;
 
 // ---- small config file (last output folder, formats, recent .proplaylist files)
 const cfgPath = () => path.join(app.getPath('userData'), 'config.json');
-const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', recent: [], pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
+const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', recent: [], ppRoot: '', theme: '', pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
 function readCfg() {
   try {
     const saved = JSON.parse(fs.readFileSync(cfgPath(), 'utf8'));
@@ -39,6 +42,8 @@ function writeCfg(c) { try { fs.mkdirSync(path.dirname(cfgPath()), { recursive: 
 function runEngine(args, { onProgress, track } = {}) {
   return new Promise((resolve) => {
     const cmd = USE_BUNDLED ? BUNDLED_ENGINE : PY;
+    const root = readCfg().ppRoot;                         // the user's own ProPresenter folder, if they set one in Settings
+    if (root) args = ['--pp-root', root, ...args];
     const argv = USE_BUNDLED ? args : ['-u', ENGINE, ...args];
     const env = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUNBUFFERED: '1' };
     if (USE_BUNDLED) env.PP2MP4_RTF2PNG = BUNDLED_RTF;
@@ -86,7 +91,28 @@ function timingArgs(t) {
 
 // ---- IPC
 ipcMain.handle('cfg:get', () => readCfg());
-ipcMain.handle('cfg:set', (_e, patch) => { const c = { ...readCfg(), ...patch }; writeCfg(c); return c; });
+ipcMain.handle('cfg:set', (_e, patch) => {
+  const c = { ...readCfg(), ...patch }; writeCfg(c);
+  if (patch && patch.theme) nativeTheme.themeSource = patch.theme;     // window frame and menus follow the chosen theme
+  return c;
+});
+
+// ---- Settings: where ProPresenter keeps its files
+ipcMain.handle('pp:info', () => {
+  const custom = readCfg().ppRoot;
+  const root = custom || PP_DEFAULT;
+  return { def: PP_DEFAULT, root, custom: !!custom, found: isWorkspace(root), defaultFound: isWorkspace(PP_DEFAULT) };
+});
+ipcMain.handle('pp:pick', async () => {
+  const start = fs.existsSync(path.dirname(PP_DEFAULT)) ? path.dirname(PP_DEFAULT) : os.homedir();
+  const r = await dialog.showOpenDialog(win, {
+    title: 'Choose your ProPresenter folder', message: 'Pick the ProPresenter workspace folder: the one that has Libraries and Playlists inside.',
+    properties: ['openDirectory'], defaultPath: readCfg().ppRoot || start, buttonLabel: 'Use this folder',
+  });
+  if (r.canceled) return null;
+  const root = resolveWorkspace(r.filePaths[0]);
+  return root ? { root } : { error: 'This does not look like a ProPresenter workspace folder. It should have a “Libraries” and a “Playlists” folder inside.' };
+});
 
 ipcMain.handle('tree', async (_e, proplaylist) => {
   const r = await runEngine(['--playlists', '--json', ...srcArgs(proplaylist)]);
@@ -173,6 +199,7 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  const t = readCfg().theme; if (t) nativeTheme.themeSource = t;
   createWindow();
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
