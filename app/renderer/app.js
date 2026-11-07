@@ -29,6 +29,33 @@ const S = {
 const setKey = (idx) => `${S.source}|${S.playlist ? S.playlist.uuid : ''}|${idx}`;
 const settingsFor = (idx) => S.slideSettings[setKey(idx)] || {};
 const baseName = (p) => p.split('/').pop();
+// ---- ProPresenter-style controls: a field that shows "24s" next to a slider (the field accepts typing, the slider drags)
+const fmtS = (v) => `${Math.round(v * 10) / 10}s`;
+const ICONS = {
+  clock: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4.5l3 1.5M9.5 3h5"/></svg>',
+  photo: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3 3-2.5 4 3.5"/></svg>',
+};
+const icon = (name) => { const e = h('span', { class: 'ico' }); e.innerHTML = ICONS[name]; return e; };
+function timeControl({ value, min, max, step = 0.5, hard = max, total = null, title = '', ico = null, commit }) {
+  const field = h('input', { class: 'pp-field', type: 'text', inputmode: 'decimal', value: fmtS(value), title });
+  const rng = h('input', { class: 'pp-range', type: 'range', min, max, step, value: Math.min(max, value), title });
+  const paint = () => rng.style.setProperty('--p', (max > min ? ((rng.value - min) / (max - min)) * 100 : 0) + '%');
+  paint();
+  let cur = value;
+  field.onfocus = () => field.select();
+  field.onkeydown = (e) => { if (e.key === 'Enter') field.blur(); };
+  field.onchange = () => {
+    const v = parseFloat(String(field.value).replace(/s\s*$/i, '').replace(',', '.'));
+    if (!Number.isFinite(v)) { field.value = fmtS(cur); return; }
+    cur = Math.max(min, Math.min(hard, v)); field.value = fmtS(cur); rng.value = Math.min(max, cur); paint(); commit(cur);
+  };
+  rng.oninput = () => { cur = Number(rng.value); field.value = fmtS(cur); paint(); };
+  rng.onchange = () => commit(Number(rng.value));
+  const wrap = h('span', { class: 'pp-time' }, ico ? icon(ico) : null, field, rng, total != null ? h('span', { class: 'pp-total', text: fmtS(total), title: 'Length of the video' }) : null);
+  wrap.set = (v) => { if (document.activeElement === field) return; cur = v; field.value = fmtS(v); rng.value = Math.min(max, v); paint(); };
+  wrap.field = field;
+  return wrap;
+}
 const timing = () => ({ pictureSeconds: S.cfg.pictureSeconds, overrideAll: !!S.cfg.overrideAll, allSeconds: S.cfg.allSeconds, noVideoHold: !!S.cfg.noVideoHold });
 const formatValue = () => (S.cfg.mp4 && S.cfg.pdf ? 'both' : S.cfg.pdf ? 'pdf' : 'mp4');
 const flatPlaylists = (nodes, path = []) => nodes.flatMap((n) => n.type === 'folder' ? flatPlaylists(n.children, [...path, n.name]) : [{ ...n, folderPath: path }]);
@@ -158,7 +185,9 @@ async function focusItem(it, quiet) {
 function drawPreview(it, r, scroll) {
   const pv = $('pv');
   const total = r.total_seconds;
-  $('pv-meta').textContent = `${r.slides.length} slides · ${Math.floor(total / 60)}:${String(Math.round(total % 60)).padStart(2, '0')} · ${r.subtitle}`;
+  const mmss = `${Math.floor(total / 60)}:${String(Math.round(total % 60)).padStart(2, '0')}`;
+  $('pv-meta').textContent = S.cfg.mp4 ? `${r.slides.length} slides · ${mmss} · ${r.subtitle}` : `${r.slides.length} slides · ${r.subtitle}`;
+  $('pv-total').textContent = `Total ${mmss} · ${Math.round(total)} s`;
   const standin = r.slides.some((s) => /stand-in/.test(s.desc));
   const grid = h('div', { class: 'pv-grid' });
   const cur = settingsFor(it.index);
@@ -175,31 +204,25 @@ function drawPreview(it, r, scroll) {
     clearTimeout(changeTimer);
     changeTimer = setTimeout(() => focusItem(it, true), 700);
   };
-  const numIn = (cls, value, min, max, step, title, onch) => {
-    const i = h('input', { class: cls, type: 'number', min, max, step, value, title });
-    i.onchange = () => { const v = Math.max(min, Math.min(max, Number(i.value))); if (Number.isFinite(v)) { i.value = v; onch(v); } };
-    return i;
-  };
   for (const s of r.slides) {
     const col = s.color || '#3a3a40';
     const rgb = [1, 3, 5].map((i) => parseInt(col.slice(i, i + 2), 16));
     const fg = rgb.reduce((a, b) => a + b, 0) > 450 ? '#000' : '#fff';
-    const secs = s.kind === 'audio' ? h('span', { class: 's', text: s.seconds ? s.seconds + 's' : '' })
-      : h('span', { class: 's', title: 'How long this slide stays on screen in the MP4. A video shorter than this holds its last frame; longer is cut.' },
-        numIn('secs', s.seconds, 0.5, 3600, 0.5, 'Seconds on screen', (v) => change(s.n, 'seconds', v)), 's');
+    const isVid = (s.kind === 'video' || s.kind === 'slidevideo') && s.vlen > 0;
     const ctl = [];
-    if (S.cfg.pdf && (s.kind === 'video' || s.kind === 'slidevideo') && s.vlen > 0) {
+    if (S.cfg.mp4 && s.kind !== 'audio') {            // seconds on screen: MP4 only
+      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'clock', value: s.seconds, min: 0.5, max: isVid ? Math.max(1, s.vlen) : 60, step: 0.5, hard: 3600, total: isVid ? s.vlen : null,
+        title: 'How long this slide stays on screen in the MP4. A video shorter than this holds its last frame; longer is cut. Type a number or drag.', commit: (v) => change(s.n, 'seconds', v) })));
+    }
+    if (S.cfg.pdf && isVid) {                           // which moment of the video becomes the PDF page
       const max = Math.max(0, Math.floor((s.vlen - 0.1) * 10) / 10), val = s.poster == null ? 0 : Math.min(max, s.poster);
-      const rng = h('input', { class: 'tl', type: 'range', min: 0, max, step: 0.1, value: val, title: 'Drag to choose which moment of the video is the PDF picture' });
-      const box = numIn('input mini', val, 0, max, 0.1, 'Seconds into the video', (v) => { rng.value = v; change(s.n, 'poster', v); });
-      rng.oninput = () => { box.value = rng.value; };
-      rng.onchange = () => change(s.n, 'poster', Number(rng.value));
-      ctl.push(h('div', { class: 'c' }, 'PDF picture at ', box, ' s of ' + s.vlen + ' s'), h('div', { class: 'c' }, rng));
+      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'photo', value: val, min: 0, max, step: 0.1, hard: max, total: s.vlen,
+        title: 'Which moment of the video is the picture in the PDF. Type a number or drag.', commit: (v) => change(s.n, 'poster', v) })));
     }
     grid.append(h('div', { class: 'slide' },
       h('img', { src: 'file://' + encodeURI(s.file).replace(/#/g, '%23'), alt: s.name, loading: 'lazy' }),
-      h('div', { class: 'lab', style: `background:${col};color:${fg}` }, h('b', { text: String(s.n) }), h('span', { class: 't', text: s.name }), secs),
-      ctl.length ? h('div', { class: 'ctl' }, ...ctl) : null));
+      h('div', { class: 'lab', style: `background:${col};color:${fg}` }, h('b', { text: String(s.n) }), h('span', { class: 't', text: s.name })),
+      ctl.length ? h('div', { class: 'ctl pp' }, ...ctl) : null));
   }
   const notes = [];
   if (standin) notes.push(h('div', { class: 'note warn', text: 'ProPresenter themes are not stored in the files, so slides that only have text are shown on a dark stand-in background. The MP4 / PDF use the same stand-in.' }));
@@ -280,25 +303,54 @@ function showTab(name) {
 }
 document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
 
+function buildOpts() {
+  const box = $('pv-opts');
+  const check = (id, text, title) => h('label', { class: 'pp-check', title }, h('input', { id, type: 'checkbox' }), h('span', { class: 'box', text: '✓' }), text);
+  const row = (label, ...kids) => h('div', { class: 'pp-row' }, h('span', { class: 'k', text: label + ':' }), h('div', { class: 'v' }, ...kids));
+  const pic = timeControl({ value: S.cfg.pictureSeconds, min: 1, max: 60, step: 1, hard: 600, title: 'How long a picture stays before the next slide, when ProPresenter gave it no timer.', commit: (v) => timingChanged({ pictureSeconds: v }) });
+  const all = timeControl({ value: S.cfg.allSeconds, min: 0.5, max: 120, step: 0.5, hard: 3600, title: 'The time used for every slide when the box is ticked.', commit: (v) => timingChanged({ allSeconds: v }) });
+  box.replaceChildren(
+    h('div', { class: 'pp-top' }, h('span', { class: 'pp-h', text: 'MP4 timing' }), h('span', { class: 'tot', id: 'pv-total' })),
+    row('Picture time', pic),
+    row('Every slide', check('all-on', 'Same time for every slide', "Show every slide for the same time, replacing ProPresenter's timers and video lengths. Editing one slide's time unticks this and keeps the rest."), all),
+    row('After a video', check('no-vhold', 'Go straight to the next slide', 'After a video ends, do not hold its last frame')));
+  $('all-on').onchange = () => {
+    if ($('all-on').checked) {                               // ticking applies the time to every slide: forget the times set one by one
+      const keep = {};
+      for (const [k, slides] of Object.entries(S.slideSettings)) {
+        const kept = {};
+        for (const [n, v] of Object.entries(slides)) { const { seconds, ...rest } = v; if (Object.keys(rest).length) kept[n] = rest; }
+        if (Object.keys(kept).length) keep[k] = kept;
+      }
+      S.slideSettings = keep;
+    }
+    timingChanged({ overrideAll: $('all-on').checked });
+  };
+  $('no-vhold').onchange = () => timingChanged({ noVideoHold: $('no-vhold').checked });
+  return { pic, all };
+}
+const O = buildOpts();
+
 function updateMake() {
   const n = S.selected.size;
   const btn = $('make');
   const anyFmt = S.cfg.mp4 || S.cfg.pdf;
-  btn.textContent = n === 1 ? 'Make 1 item' : `Make ${n} items`;
+  btn.textContent = n === 0 ? 'Export…' : n === 1 ? 'Export 1 item…' : `Export ${n} items…`;
   const why = [];
   if (!n) why.push('Tick at least one item in the list.');
-  if (!S.cfg.outdir) why.push('Choose the folder to save into.');
-  if (!anyFmt) why.push('Tick MP4 or PDF.');
+  if (!anyFmt) why.push('Turn on MP4 or PDF.');
   btn.disabled = S.busy || why.length > 0;
   $('make-wrap').classList.toggle('blocked', !S.busy && why.length > 0);
   $('make-tip').replaceChildren(h('b', { text: 'Not ready yet' }), ...why.map((w) => h('div', { text: w })));
-  $('fmt-mp4').checked = !!S.cfg.mp4; $('fmt-pdf').checked = !!S.cfg.pdf; $('fmt-mp4').disabled = $('fmt-pdf').disabled = S.busy;
+  for (const [id, key] of [['fmt-mp4', 'mp4'], ['fmt-pdf', 'pdf']]) { $(id).classList.toggle('on', !!S.cfg[key]); $(id).setAttribute('aria-pressed', S.cfg[key] ? 'true' : 'false'); $(id).disabled = S.busy; }
+  $('pv-opts').hidden = !S.cfg.mp4;                           // timing only applies to the MP4
   const parts = (S.cfg.outdir || '').split('/').filter(Boolean);
-  $('out-path').textContent = S.cfg.outdir ? (parts.length > 2 ? '…/' + parts.slice(-2).join('/') : S.cfg.outdir) : 'no folder chosen yet'; $('out-path').title = (S.cfg.outdir ? 'Saved in: ' + S.cfg.outdir + '\n\n' : '') + 'You do not type a file name. Each file is named after its item, for example “261108 Warta.mp4” and “261108 Warta.pdf”. A file with the same name in this folder is replaced.'; $('pick-out').title = $('out-path').title;
-  if (document.activeElement !== $('pic-sec')) $('pic-sec').value = S.cfg.pictureSeconds;
-  if (document.activeElement !== $('all-sec')) $('all-sec').value = S.cfg.allSeconds;
+  $('out-path').textContent = S.cfg.outdir ? 'Last export: ' + (parts.length > 2 ? '…/' + parts.slice(-2).join('/') : S.cfg.outdir) : 'You choose the folder when you export';
+  $('out-path').title = (S.cfg.outdir ? 'Last export folder: ' + S.cfg.outdir + '\n\n' : '') + 'You do not type a file name. Each file is named after its item, for example “261108 Warta.mp4” and “261108 Warta.pdf”. A file with the same name in the folder you choose is replaced.';
+  O.pic.set(S.cfg.pictureSeconds); O.all.set(S.cfg.allSeconds);
   $('all-on').checked = !!S.cfg.overrideAll; $('no-vhold').checked = !!S.cfg.noVideoHold;
-  for (const id of ['pic-sec', 'all-on', 'all-sec', 'no-vhold']) $(id).disabled = S.busy;
+  for (const id of ['all-on', 'no-vhold']) $(id).disabled = S.busy;
+  for (const w of [O.pic, O.all]) w.field.disabled = w.field.nextSibling.disabled = S.busy;
 }
 
 // timing options: saved, and the open preview is rebuilt so its total time follows
@@ -309,25 +361,11 @@ function timingChanged(patch) {
   clearTimeout(timingTimer);
   timingTimer = setTimeout(() => { if (S.focus && S.playlist) focusItem(S.playlist.items.find((i) => i.index === S.focus)); }, 500);
 }
-$('pic-sec').onchange = () => { const v = Math.max(1, Math.min(600, Math.round(Number($('pic-sec').value) || 5))); $('pic-sec').value = v; timingChanged({ pictureSeconds: v }); };
-$('all-sec').onchange = () => { const v = Math.max(0.5, Math.min(3600, Number($('all-sec').value) || 10)); $('all-sec').value = v; timingChanged({ allSeconds: v }); };
-$('all-on').onchange = () => {
-  if ($('all-on').checked) {                               // ticking applies the time to every slide: forget the times set one by one
-    const all = {};
-    for (const [k, slides] of Object.entries(S.slideSettings)) {
-      const kept = {};
-      for (const [n, v] of Object.entries(slides)) { const { seconds, ...rest } = v; if (Object.keys(rest).length) kept[n] = rest; }
-      if (Object.keys(kept).length) all[k] = kept;
-    }
-    S.slideSettings = all;
-  }
-  timingChanged({ overrideAll: $('all-on').checked });
-};
-$('no-vhold').onchange = () => timingChanged({ noVideoHold: $('no-vhold').checked });
 
-$('fmt-mp4').onchange = async () => { S.cfg = await window.pp.cfgSet({ mp4: $('fmt-mp4').checked }); updateMake(); };
-$('fmt-pdf').onchange = async () => { S.cfg = await window.pp.cfgSet({ pdf: $('fmt-pdf').checked }); updateMake(); redrawPreview(); };
-$('pick-out').onclick = async () => { const d = await window.pp.pickFolder(S.cfg.outdir); if (d) { S.cfg = await window.pp.cfgSet({ outdir: d }); updateMake(); } };
+// format tabs: click to turn a format on or off, like ProPresenter's tab bars
+for (const [id, key] of [['fmt-mp4', 'mp4'], ['fmt-pdf', 'pdf']]) {
+  $(id).onclick = async () => { S.cfg = await window.pp.cfgSet({ [key]: !S.cfg[key] }); updateMake(); redrawPreview(); };
+}
 const refocus = () => { if (S.focus && S.playlist) focusItem(S.playlist.items.find((i) => i.index === S.focus)); };
 
 $('open-pl').onclick = async () => {
@@ -349,11 +387,14 @@ $('filter').oninput = renderTree;
 
 $('make').onclick = async () => {
   if (!S.playlist || !S.selected.size) return;
+  const dir = await window.pp.pickFolder(S.cfg.outdir, { title: 'Export', button: 'Export', message: 'Choose where to save. Files are named after each item (for example “261108 Warta.mp4”); a file with the same name is replaced.' });
+  if (!dir) return;
+  S.cfg = await window.pp.cfgSet({ outdir: dir });
   const items = S.playlist.items.filter((i) => S.selected.has(i.index)).map((i) => ({ index: i.index, name: i.name, settings: settingsFor(i.index) }));
   S.busy = true; updateMake();
   $('cancel').hidden = false; $('prog').hidden = false; $('result').hidden = true; $('prog-fill').style.width = '0';
   $('prog-text').textContent = 'Starting…';
-  const results = await window.pp.convert({ proplaylist: S.source || null, playlist: S.playlist.uuid, items, format: formatValue(), outdir: S.cfg.outdir, timing: timing() });
+  const results = await window.pp.convert({ proplaylist: S.source || null, playlist: S.playlist.uuid, items, format: formatValue(), outdir: dir, timing: timing() });
   S.busy = false; $('cancel').hidden = true; updateMake();
   showResults(results);
 };

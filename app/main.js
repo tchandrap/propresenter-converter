@@ -137,10 +137,11 @@ ipcMain.handle('convert', async (_e, { proplaylist, playlist, items, format, out
 
 ipcMain.handle('cancel', () => { cancelled = true; if (current) current.kill('SIGTERM'); });
 
-ipcMain.handle('pick-folder', async (_e, start) => {
+ipcMain.handle('pick-folder', async (_e, start, o) => {
+  o = o || {};
   const r = await dialog.showOpenDialog(win, {
-    title: 'Choose where to save the MP4 / PDF files', properties: ['openDirectory', 'createDirectory'],
-    defaultPath: start || app.getPath('desktop'), buttonLabel: 'Use this folder',
+    title: o.title || 'Choose a folder', message: o.message || undefined, properties: ['openDirectory', 'createDirectory'],
+    defaultPath: start || app.getPath('desktop'), buttonLabel: o.button || 'Choose',
   });
   return r.canceled ? null : r.filePaths[0];
 });

@@ -8,7 +8,7 @@ contextBridge.exposeInMainWorld('pp', {
   preview: (opts) => ipcRenderer.invoke('preview', opts),
   convert: (opts) => ipcRenderer.invoke('convert', opts),
   cancel: () => ipcRenderer.invoke('cancel'),
-  pickFolder: (start) => ipcRenderer.invoke('pick-folder', start),
+  pickFolder: (start, o) => ipcRenderer.invoke('pick-folder', start, o),
   pickProplaylist: () => ipcRenderer.invoke('pick-proplaylist'),
   reveal: (p) => ipcRenderer.invoke('reveal', p),
   openPath: (p) => ipcRenderer.invoke('open-path', p),
