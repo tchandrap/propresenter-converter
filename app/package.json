@@ -1,7 +1,7 @@
 {
   "name": "slidebridge",
   "productName": "SlideBridge",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "SlideBridge: ProPresenter converter. Turn playlist items into MP4 video or PDF.",
   "main": "main.js",
   "scripts": {
