@@ -59,7 +59,7 @@ jobs:
           file "$APP/Contents/MacOS/SlideBridge" | grep -q "${{ matrix.expect }}"
           test -x "$APP/Contents/Resources/rtf2png"
           python3 tests/engine_test.py "$ENGINE"
-          hdiutil verify dist/*.dmg
+          for i in 1 2 3 4 5; do hdiutil verify dist/*.dmg && break; echo "disk image busy, retry $i"; sleep 5; [ "$i" = 5 ] && exit 1; done
 
       - uses: actions/upload-artifact@v4
         with:
