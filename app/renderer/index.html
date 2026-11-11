@@ -14,15 +14,36 @@
     <div class="side-h">Sources</div>
     <div class="srctabs" role="tablist" aria-label="Where the slides come from">
       <button id="st-pro" class="srctab on has-tip tip-below" role="tab" aria-selected="true" type="button" data-tip="Slides that are already in ProPresenter: your library, or a .proplaylist file. Convert them to a PDF or a video (MP4)."><svg viewBox="0 0 28 24" width="28" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="22" height="14" rx="2.5"/><path d="M12 7.5v5l4.5-2.5z" fill="currentColor"/><path d="M14 17v4M9 21.5h10"/></svg><span>ProPresenter</span></button>
-      <button id="st-pdf" class="srctab has-tip tip-below" role="tab" aria-selected="false" type="button" data-tip="A worship script as a PDF. Convert it to a ProPresenter playlist."><svg viewBox="0 0 28 24" width="28" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.5h10l5 5V22H7z"/><path d="M17 1.5v5h5"/><rect x="2" y="11.5" width="15" height="7.5" rx="1.6" fill="#e5322d" stroke="none"/><text x="9.5" y="17.2" font-size="5.8" text-anchor="middle" fill="#fff" stroke="none" font-weight="700" font-family="Helvetica,Arial,sans-serif">PDF</text></svg><span>PDF</span></button>
-      <button id="st-pptx" class="srctab has-tip tip-below" role="tab" aria-selected="false" type="button" data-tip="PowerPoint decks: the sermon deck and the master deck from Church Center. Convert them to a ProPresenter playlist."><svg viewBox="0 0 28 24" width="28" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2.5" width="16" height="19" rx="2.5"/><path d="M14 8h7M14 12h7M14 16h4"/><rect x="2" y="7" width="12" height="12" rx="2" fill="#d24726" stroke="none"/><text x="8" y="16.4" font-size="8.5" text-anchor="middle" fill="#fff" stroke="none" font-weight="700" font-family="Helvetica,Arial,sans-serif">P</text></svg><span>PowerPoint</span></button>
+      <button id="st-pdf" class="srctab has-tip tip-below" role="tab" aria-selected="false" type="button" data-tip="A worship script as a PDF (with an optional sermon deck and master deck). Convert it to a ProPresenter playlist."><svg viewBox="0 0 28 24" width="28" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.5h10l5 5V22H7z"/><path d="M17 1.5v5h5"/><rect x="2" y="11.5" width="15" height="7.5" rx="1.6" fill="#e5322d" stroke="none"/><text x="9.5" y="17.2" font-size="5.8" text-anchor="middle" fill="#fff" stroke="none" font-weight="700" font-family="Helvetica,Arial,sans-serif">PDF</text></svg><span>PDF</span></button>
     </div>
     <div class="side-h">Convert to</div>
     <div id="conv-pro" class="pp-tabs conv" role="group" aria-label="Convert to">
       <button id="fmt-pdf" class="pp-tab has-tip tip-below" type="button" aria-pressed="false" data-tip="Turn ProPresenter slides into a PDF, one page per slide. A video becomes a still picture: you choose which moment."><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 12h6M9.5 15.5h6"/></svg><span>PDF</span></button>
       <button id="fmt-mp4" class="pp-tab has-tip tip-below" type="button" aria-pressed="false" data-tip="Turn ProPresenter slides into a video (MP4, 1920×1080). Videos keep their sound. You set how long each slide stays."><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg><span>MP4</span></button>
     </div>
-    <div id="conv-imp"><span class="target">ProPresenter playlist</span></div>
+    <div id="conv-imp" class="pp-tabs conv" role="group" aria-label="Convert to">
+      <button id="conv-imp-btn" class="pp-tab has-tip tip-below" type="button" aria-pressed="false" data-tip="Build a ProPresenter playlist. Click to choose your files."><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2.5"/><path d="M8 8h8M8 12h8M8 16h5"/></svg><span>ProPresenter playlist</span></button>
+    </div>
+    <div id="imp-side" class="imp-form" data-focus="pdf" hidden>
+      <div class="imp-blocks">
+          <section id="blk-script" class="imp-block">
+            <div class="pp-h spaced">Worship script <span class="badge when-pdf">Recommended</span><span class="muted opt when-pptx">optional</span></div>
+            <div class="srow"><span class="k">PDF:</span><div class="v"><span id="imp-pdf" class="pp-path"></span><button id="imp-pdf-pick" class="btn" title="Only PDF files (.pdf) can be chosen">Browse…</button><button id="imp-pdf-x" class="btn ghost" hidden>Clear</button></div></div>
+            <div class="srow"><span class="k"></span><div class="muted line">PDF files only (.pdf). The order of service, Nats, Bible reading and every song's full lyrics.</div></div>
+          </section>
+          <section id="blk-decks" class="imp-block">
+            <div class="pp-h spaced">PowerPoint decks <span class="badge when-pptx">Recommended</span><span class="muted opt when-pdf">optional</span></div>
+            <div class="srow"><span class="k">Sermon deck:</span><div class="v"><span id="imp-khotbah" class="pp-path"></span><button id="imp-khotbah-pick" class="btn" title="Only PowerPoint files (.pptx) can be chosen">Browse…</button><button id="imp-khotbah-x" class="btn ghost" hidden>Clear</button></div></div>
+            <div class="srow"><span class="k"></span><div class="muted line">PowerPoint files only (.pptx). Each slide becomes a slide in the playlist.</div></div>
+            <div class="srow"><span class="k">Master deck:</span><div class="v"><span id="imp-master" class="pp-path"></span><button id="imp-master-pick" class="btn" title="Only PowerPoint files (.pptx) can be chosen">Browse…</button><button id="imp-master-x" class="btn ghost" hidden>Clear</button></div></div>
+            <div class="srow"><span class="k"></span><div class="muted line">PowerPoint files only (.pptx). From Church Center, used as the template: it fills in the date. If a song's motion is not on this computer, its background comes from this deck.</div></div>
+          </section>
+        </div>
+        <div class="pp-h spaced">Look and layout</div>
+        <div class="srow"><span class="k">Copy the look from:</span><div class="v"><select id="imp-template" class="input"></select></div></div>
+        <div class="srow"><span class="k">Lines per slide:</span><div class="v"><input id="imp-lines" class="input num" type="number" min="1" max="8" step="1" value="2"><span class="muted">lyric lines on each song slide</span></div></div>
+        <div class="srow"><span class="k"></span><div class="v"><span id="imp-make-wrap" class="tipwrap"><button id="imp-make" class="btn primary" disabled>Create playlist…</button><span id="imp-tip" class="tip" role="tooltip"></span></span><button id="imp-cancel" class="btn danger" hidden>Cancel</button><span id="imp-busy" class="muted" hidden>Building…</span></div></div>
+    </div>
     <div id="pro-block">
       <div id="sources"></div>
       <button id="open-pl" class="btn ghost wide">Open .proplaylist file…</button>
@@ -69,27 +90,8 @@
     </section>
 
     <section id="view-import" class="view">
-      <div class="settings imp" id="imp" data-focus="pdf">
-        <div class="pp-h">Convert to a ProPresenter playlist</div>
-        <p class="muted hint top">SlideBridge builds a ProPresenter playlist from this week's files, in the look of a playlist you already finished, so the songs, readings and sermon slides come out in your usual style. Any one file is enough.</p>
-        <div class="imp-blocks">
-          <section id="blk-script" class="imp-block">
-            <div class="pp-h spaced">Worship script <span class="badge when-pdf">Recommended</span><span class="muted opt when-pptx">optional</span></div>
-            <div class="srow"><span class="k">PDF:</span><div class="v"><span id="imp-pdf" class="pp-path"></span><button id="imp-pdf-pick" class="btn" title="Only PDF files (.pdf) can be chosen">Browse…</button><button id="imp-pdf-x" class="btn ghost" hidden>Clear</button></div></div>
-            <div class="srow"><span class="k"></span><div class="muted line">PDF files only (.pdf). The order of service, Nats Panggilan, Bible reading and the full lyrics of every song.</div></div>
-          </section>
-          <section id="blk-decks" class="imp-block">
-            <div class="pp-h spaced">PowerPoint decks <span class="badge when-pptx">Recommended</span><span class="muted opt when-pdf">optional</span></div>
-            <div class="srow"><span class="k">Sermon deck:</span><div class="v"><span id="imp-khotbah" class="pp-path"></span><button id="imp-khotbah-pick" class="btn" title="Only PowerPoint files (.pptx) can be chosen">Browse…</button><button id="imp-khotbah-x" class="btn ghost" hidden>Clear</button></div></div>
-            <div class="srow"><span class="k"></span><div class="muted line">PowerPoint files only (.pptx). The preacher's deck: each slide becomes a slide in the playlist.</div></div>
-            <div class="srow"><span class="k">Master deck:</span><div class="v"><span id="imp-master" class="pp-path"></span><button id="imp-master-pick" class="btn" title="Only PowerPoint files (.pptx) can be chosen">Browse…</button><button id="imp-master-x" class="btn ghost" hidden>Clear</button></div></div>
-            <div class="srow"><span class="k"></span><div class="muted line">PowerPoint files only (.pptx). The master deck from Church Center, used as the template: it fills in what the script does not have, such as the date. If a song's motion is not on this computer, that song's background picture is taken from this deck.</div></div>
-          </section>
-        </div>
-        <div class="pp-h spaced">Look and layout</div>
-        <div class="srow"><span class="k">Copy the look from:</span><div class="v"><select id="imp-template" class="input"></select></div></div>
-        <div class="srow"><span class="k">Lines per slide:</span><div class="v"><input id="imp-lines" class="input num" type="number" min="1" max="8" step="1" value="2"><span class="muted">lyric lines on each song slide</span></div></div>
-        <div class="srow"><span class="k"></span><div class="v"><span id="imp-make-wrap" class="tipwrap"><button id="imp-make" class="btn primary" disabled>Create playlist…</button><span id="imp-tip" class="tip" role="tooltip"></span></span><button id="imp-cancel" class="btn danger" hidden>Cancel</button><span id="imp-busy" class="muted" hidden>Building…</span></div></div>
+      <div class="settings imp">
+        <div id="imp-empty" class="muted"></div>
         <div id="imp-result" hidden></div>
       </div>
     </section>

@@ -245,15 +245,34 @@ button, input { font: inherit; color: inherit; }
 #conv-pro { display: flex; }
 #conv-pro .pp-tab { flex: 1; justify-content: center; padding: 7px 8px; }
 #conv-imp { display: none; }
+#conv-imp .pp-tab { flex: 1; justify-content: center; padding: 7px 8px; }
+#imp-side { display: none; }
 .importing #conv-imp { display: flex; }
+.importing #imp-side:not([hidden]) { display: block; }
 .importing #conv-pro, .importing #pro-block { display: none; }
 #pro-block { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
 #pl-block { flex: 1; }
 .imp-blocks { display: flex; flex-direction: column; }
-.imp[data-focus="pptx"] #blk-decks { order: -1; }
+.imp-form[data-focus="pptx"] #blk-decks { order: -1; }
 .when-pptx { display: none; }
-.imp[data-focus="pptx"] .when-pptx { display: inline; }
-.imp[data-focus="pptx"] .when-pdf { display: none; }
-.srctab:nth-child(2)::after { left: 50%; transform: translateX(-50%); }
-.srctab:nth-child(3)::after { left: auto; right: 0; }
+.imp-form[data-focus="pptx"] .when-pptx { display: inline; }
+.imp-form[data-focus="pptx"] .when-pdf { display: none; }
+.srctab:nth-child(2)::after { left: auto; right: 0; }
 .srctab::after { max-width: 210px; }
+
+/* the import form lives in the sidebar: stacked rows */
+.imp-form { margin-top: 6px; }
+.imp-form .pp-h { margin: 14px 0 4px; font-size: 11px; }
+.imp-form .pp-h.spaced { margin-top: 14px; }
+.imp-form .srow { display: block; padding: 3px 0; }
+.imp-form .srow .k { display: block; text-align: left; margin: 2px 0 3px; font-size: 12px; }
+.imp-form .srow .k:empty { display: none; }
+.imp-form .srow .v { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.imp-form .pp-path { flex: 1 1 100%; font-size: 12px; direction: ltr; }
+.imp-form .btn { padding: 5px 10px; }
+.imp-form .line { font-size: 11px; line-height: 1.35; margin: 0 0 4px; }
+.imp-form select.input { max-width: 100%; width: 100%; font-size: 12px; }
+.imp-form .input.num { width: 64px; }
+.imp-form .badge { margin-left: 6px; }
+#imp-empty { padding: 28px 8px; text-align: center; }
+#view-import .imp-res { margin-top: 0; border-top: 0; padding-top: 0; }

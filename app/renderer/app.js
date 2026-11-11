@@ -315,18 +315,29 @@ function showTab(name) {
   if (name === 'import') { impFillTemplates(); impSync(); }
   const imp = name === 'import';
   document.body.classList.toggle('importing', imp);
-  $('imp').dataset.focus = IMP.focus;
-  for (const [id, on] of [['st-pro', !imp], ['st-pdf', imp && IMP.focus === 'pdf'], ['st-pptx', imp && IMP.focus === 'pptx']]) { $(id).classList.toggle('on', on); $(id).setAttribute('aria-selected', on ? 'true' : 'false'); }
+  $('imp-side').dataset.focus = IMP.focus; impTarget();
+  for (const [id, on] of [['st-pro', !imp], ['st-pdf', imp && IMP.focus === 'pdf']]) { $(id).classList.toggle('on', on); $(id).setAttribute('aria-selected', on ? 'true' : 'false'); }
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'view-' + name));
 }
 document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
 $('st-pro').onclick = () => { if (document.body.classList.contains('importing')) showTab('playlist'); };
 $('st-pdf').onclick = () => { IMP.focus = 'pdf'; showTab('import'); };
-$('st-pptx').onclick = () => { IMP.focus = 'pptx'; showTab('import'); };
 
 // ------------------------------------------------------------------ import: playlist from a worship script and decks
-const IMP = { pdf: '', khotbah: '', master: '', template: '', lines: 2, busy: false, last: null, focus: 'pdf' };
+const IMP = { pdf: '', khotbah: '', master: '', template: '', lines: 2, busy: false, last: null, focus: 'pdf', target: false };
+function impTarget() {
+  $('conv-imp-btn').classList.toggle('on', IMP.target); $('conv-imp-btn').setAttribute('aria-pressed', IMP.target ? 'true' : 'false');
+  $('imp-side').hidden = !IMP.target;
+  impMessage();
+}
+function impMessage() {
+  const e = $('imp-empty');
+  e.hidden = !!(IMP.last && !IMP.busy) && !$('imp-result').hidden;
+  e.textContent = IMP.busy ? 'Building the playlist…'
+    : !IMP.target ? 'Click “ProPresenter playlist” under Convert to, on the left, to choose your files.'
+      : 'Choose your files on the left, then click Create playlist…. The result shows up here.';
+}
 function impSync() {
   for (const k of ['pdf', 'khotbah', 'master']) {
     $('imp-' + k).textContent = IMP[k] ? baseName(IMP[k]) : (k === 'pdf' ? 'No file chosen (PDF only)' : 'No file chosen (PowerPoint only)'); $('imp-' + k).title = IMP[k];
@@ -336,7 +347,7 @@ function impSync() {
   $('imp-make').disabled = IMP.busy || !any;
   $('imp-make-wrap').classList.toggle('blocked', !IMP.busy && !any);
   $('imp-tip').replaceChildren(h('b', { text: 'Not ready yet' }), h('div', { text: 'Add the worship script or a PowerPoint deck.' }));
-  $('imp-busy').hidden = !IMP.busy; $('imp-cancel').hidden = !IMP.busy;
+  $('imp-busy').hidden = !IMP.busy; $('imp-cancel').hidden = !IMP.busy; impMessage();
   for (const id of ['imp-pdf-pick', 'imp-khotbah-pick', 'imp-master-pick', 'imp-template', 'imp-lines']) $(id).disabled = IMP.busy;
 }
 function impFillTemplates() {
@@ -363,7 +374,7 @@ $('imp-template').onchange = async () => {
 $('imp-lines').onchange = async () => { const v = Math.max(1, Math.min(8, Math.round(Number($('imp-lines').value) || 2))); $('imp-lines').value = v; IMP.lines = v; S.cfg = await window.pp.cfgSet({ importLines: v }); };
 const impTemplateArg = () => (IMP.template.startsWith('file:') ? IMP.template.slice(5) : IMP.template.startsWith('lib:') ? IMP.template.slice(4) : '');
 function impShow(res) {
-  const box = $('imp-result'); box.hidden = false; box.className = 'imp-res'; box.replaceChildren();
+  const box = $('imp-result'); box.hidden = false; box.className = 'imp-res'; box.replaceChildren(); $('imp-empty').hidden = true;
   if (res.error) { box.append(h('div', { class: 'note err', text: res.error })); return; }
   box.append(h('h3', { text: `${res.playlist}: ${res.items} items` }));
   for (const r of res.report) box.append(h('div', { class: 'imp-row' }, h('span', { class: 'chip ' + r.status, text: r.status === 'generated' ? 'made' : r.status === 'partial' ? 'partly' : r.status }), h('span', { class: 'nm', text: r.item }), h('span', { class: 'muted', text: r.note || '' })));
@@ -384,7 +395,7 @@ function impShow(res) {
   box.append(act);
 }
 $('imp-make').onclick = async () => {
-  IMP.busy = true; impSync(); $('imp-result').hidden = true;
+  IMP.busy = true; $('imp-result').hidden = true; impSync();
   const res = await window.pp.importRun({ pdf: IMP.pdf, khotbah: IMP.khotbah, master: IMP.master, template: impTemplateArg(), lines: IMP.lines });
   IMP.busy = false; impSync();
   if (res.error) { impShow(res); return; }
@@ -393,6 +404,7 @@ $('imp-make').onclick = async () => {
   IMP.last = res; impShow(res);
 };
 $('imp-cancel').onclick = () => window.pp.cancel();
+$('conv-imp-btn').onclick = () => { IMP.target = !IMP.target; impTarget(); };
 
 // ------------------------------------------------------------------ settings: theme and the ProPresenter folder
 function renderSettings() {

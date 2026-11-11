@@ -29,11 +29,11 @@ If macOS says it is damaged, run once in Terminal: `xattr -dr com.apple.quaranti
 - Keeps the **text you typed on a video or picture** in ProPresenter (for example a thank-you slide) and centres it
   the way ProPresenter does.
 - In the preview, set for each slide **how long it is shown** and, for videos, **which moment becomes the PDF picture**.
-- **Three sources, one "Convert to" row.** Pick the source at the top left: **ProPresenter** (your library or a
-  `.proplaylist` file) converts to a **PDF** or an **MP4**; **PDF** (a worship script) and **PowerPoint** (the sermon
-  deck and the master deck from Church Center) convert to a **ProPresenter playlist**.
-- **Playlist from files:** builds a new playlist (`.proplaylist`) from the worship script, the preacher's PowerPoint and the
-  master PowerPoint. Any one is enough. Songs get their full lyrics (2 lines per slide by default), the Nats Panggilan and
+- **Sources and a "Convert to" row.** Pick the source at the top left: **ProPresenter** (your library or a
+  `.proplaylist` file) converts to a **PDF** or an **MP4**; **PDF** (a worship script) converts to a
+  **ProPresenter playlist**. PowerPoint as a source of its own is planned.
+- **Playlist from a worship script:** builds a new playlist (`.proplaylist`) from the worship script, with the preacher's
+  PowerPoint and the master PowerPoint from Church Center as optional extras. Songs get their full lyrics (2 lines per slide by default), the Nats Panggilan and
   Bible reading slides are rebuilt, the sermon deck becomes a presentation, and the look (fonts, colours, groups, actions)
   is copied from a playlist you already finished. A song's motion is picked at random from that playlist's motions that exist
   on your computer; if none does, the song's background picture is taken from the master deck.
