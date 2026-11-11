@@ -354,8 +354,31 @@ def parse_khotbah_pptx(path, outdir):
     return dict(name=stem, slides=slides)
 
 
-def parse_master_pptx(path):
-    """The GII national master deck (every liturgy item as slides of text) -> dict(songs, nats, reading)."""
+def slide_background(slide, outdir, name):
+    """The picture that fills the slide (its background), saved into outdir -> path or None."""
+    if not outdir:
+        return None
+    ns = {"a": "http://schemas.openxmlformats.org/drawingml/2006/main", "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships"}
+    for blip in slide._element.findall(".//a:blip", ns):
+        rid = blip.get("{%s}embed" % ns["r"])
+        try:
+            part = slide.part.related_part(rid)
+        except Exception:
+            continue
+        ext = os.path.splitext(part.partname)[1].lower()
+        if ext not in (".jpg", ".jpeg", ".png"):
+            continue
+        os.makedirs(outdir, exist_ok=True)
+        fn = os.path.join(outdir, f"{name}{ext}")
+        with open(fn, "wb") as f:
+            f.write(part.blob)
+        return fn
+    return None
+
+
+def parse_master_pptx(path, outdir=None):
+    """The master deck from Church Center (every liturgy item as slides of text) -> dict(songs, nats, reading, date).
+    The background picture of each song's title slide is saved into outdir."""
     prs = _pptx().Presentation(path)
     res = dict(songs=[], nats=None, reading=None, date=None)
     cur, number, just_after_song = None, 0, False
@@ -381,7 +404,8 @@ def parse_master_pptx(path):
             if not just_after_song:                         # two songs back to back are 4 and 4b, like the PDF
                 number += 1
             cur = dict(n=number, title=title_case_words(title.lower()), arrangement="",
-                       credits=[credit.replace("\n", " ")], sections=[dict(label=None, lines=[])], page=0, partial=True)
+                       credits=[credit.replace("\n", " ")], sections=[dict(label=None, lines=[])], page=0, partial=True,
+                       bg=slide_background(s, outdir, f"master_song_{len(res['songs']) + 1}_background"))
             res["songs"].append(cur)
             just_after_song = True
             continue
@@ -506,6 +530,47 @@ class Parts:
 
 
 # ---------------------------------------------------------------- builders
+def motion_available(cue):
+    """True when the motion video of this cue exists on this computer (where the cue points, or in ProPresenter's media folder)."""
+    for r in P.media_refs(cue):
+        if os.path.exists(r) or os.path.exists(os.path.join(P.PP_ROOT, "Media", "Assets", os.path.basename(r))):
+            return True
+    return False
+
+
+def image_cue(parts, image_path, media_root):
+    """A picture cue (copied from the template's KHOTBAH slide) showing image_path -> (cue nodes, file name)."""
+    fn = os.path.basename(image_path)
+    try:
+        from PIL import Image
+        w, h = Image.open(image_path).size
+    except Exception:
+        w, h = 1920, 1080
+    url = "file://" + urllib.parse.quote(f"{media_root}/{fn}")
+
+    def fix(t):
+        if t.startswith("file://"):
+            return url
+        if t.startswith("Media/Assets/"):
+            return "Media/Assets/" + fn
+        if t.lower().endswith((".png", ".jpg", ".jpeg")) and "/" not in t:
+            return fn
+        return t
+    c = replace_strings(remap_ids(parts.image_cue), fix)
+    c = map_path(c, [10, 20, 5, 5, 1, 5], lambda d: [(f, wt, float(w if n == 0 else h)) for n, (f, wt, v) in enumerate(d)])
+    return c, fn
+
+
+def assign_labels(songs):
+    """'Pujian Jemaat (4)' with two songs: 4 and 4b."""
+    seen = {}
+    for s in songs:
+        n = s["n"] or 0
+        k = seen.get(n, 0)
+        seen[n] = k + 1
+        s["label"] = f"{n}" + ("" if k == 0 else chr(ord("a") + k))
+
+
 def chunk(lines, n):
     return [lines[i:i + n] for i in range(0, len(lines), n)]
 
@@ -524,9 +589,20 @@ def group_title(label, counters):
     return label.title()
 
 
-def build_song(parts, song, per_slide=2):
-    """-> .pro bytes for one song: a motion, a title slide, then the lyrics `per_slide` lines at a time."""
-    media = fresh(random.choice(parts.motions))
+def build_song(parts, song, per_slide=2, media_root=""):
+    """-> (.pro bytes, [(file name, path)], note) for one song: a motion, a title slide, then the lyrics `per_slide` lines at a time.
+    The motion is picked at random among the template's motions that exist on this computer. When none does, the
+    background picture from the master deck is used; with neither, a template motion is kept as a link."""
+    files, note = [], ""
+    here = [m for m in parts.motions if motion_available(m)]
+    if here:
+        media = fresh(random.choice(here))
+    elif song.get("bg") and parts.image_cue is not None:
+        c, fn = image_cue(parts, song["bg"], media_root)
+        media, files, note = c, [(fn, song["bg"])], "no motion on this computer: background taken from the master deck"
+    else:
+        media = fresh(random.choice(parts.motions))
+        note = "the template's motions are not on this computer: relink the motion in ProPresenter"
     credits = song["credits"][0] if song["credits"] else ""
     title_cue = fresh(retext(parts.title_cue, lambda i, info: (
         credits if info["y"] > 800 else (song["title"] if plain(info).upper() != "PUJIAN JEMAAT" and info["h"] > 500 else None))))
@@ -549,7 +625,7 @@ def build_song(parts, song, per_slide=2):
         for sec in song["sections"]:
             cues += [lyric(ch) for ch in chunk(sec["lines"], per_slide)]
         groups.append((parts.group_blank, None, cues))
-    return compose_pres(parts.song_top, f"Pujian Jemaat {song['label']} - {song['title']}", groups)
+    return compose_pres(parts.song_top, f"Pujian Jemaat {song['label']} - {song['title']}", groups), files, note
 
 
 def split_verse(text, limit=125):
@@ -643,24 +719,7 @@ def build_image_deck(parts, name, deck, media_root):
     files, cues = [], []
     for s in deck["slides"]:
         if s["image"]:
-            fn = os.path.basename(s["image"])
-            try:
-                from PIL import Image
-                w, h = Image.open(s["image"]).size
-            except Exception:
-                w, h = 1920, 1080
-            url = "file://" + urllib.parse.quote(f"{media_root}/{fn}")
-
-            def fix(t, fn=fn, url=url):
-                if t.startswith("file://"):
-                    return url
-                if t.startswith("Media/Assets/"):
-                    return "Media/Assets/" + fn
-                if t.lower().endswith((".png", ".jpg", ".jpeg")) and "/" not in t:
-                    return fn
-                return t
-            c = replace_strings(remap_ids(parts.image_cue), fix)
-            c = map_path(c, [10, 20, 5, 5, 1, 5], lambda d: [(f, wt, float(w if n == 0 else h)) for n, (f, wt, v) in enumerate(d)])
+            c, fn = image_cue(parts, s["image"], media_root)
             cues.append(c)
             files.append((fn, s["image"]))
         elif s["text"]:
@@ -703,7 +762,7 @@ def write_bundle(out_path, data_bytes, pro_files, media_files):
 def run(a):
     """Entry point from the engine's command line -> a result dict."""
     pdf = parse_script_pdf(a.import_script) if a.import_script else None
-    master = parse_master_pptx(a.import_master) if a.import_master else None
+    master = parse_master_pptx(a.import_master, os.path.join(P.CACHE, "import-media", "master")) if a.import_master else None
     if not (pdf or master or a.import_khotbah):
         sys.exit("Give at least one of: the worship script (PDF), the preacher's deck (PPTX), the master deck (PPTX).")
     per = max(1, int(a.lines_per_slide or 2))
@@ -715,12 +774,17 @@ def run(a):
     media_root = os.path.join(P.PP_ROOT, "Media", "Assets")
 
     songs = pdf["songs"] if pdf and pdf["songs"] else (master["songs"] if master else [])
-    seen = {}
-    for s in songs:                                         # "Pujian Jemaat (4)" with two songs: 4 and 4b
-        n = s["n"] or 0
-        k = seen.get(n, 0)
-        seen[n] = k + 1
-        s["label"] = f"{n}" + ("" if k == 0 else chr(ord("a") + k - 1 + 1))
+    assign_labels(songs)
+    if master and songs is not master["songs"]:             # the master deck's background for each song of the script
+        assign_labels(master["songs"])
+        import difflib
+        by_label = {m["label"]: m for m in master["songs"]}
+        for sg in songs:
+            m = by_label.get(sg["label"])
+            if m is None or difflib.SequenceMatcher(None, m["title"].lower(), sg["title"].lower()).ratio() < 0.35:
+                m = max(master["songs"], key=lambda x: difflib.SequenceMatcher(None, x["title"].lower(), sg["title"].lower()).ratio(), default=None)
+            if m is not None:
+                sg["bg"] = m.get("bg")
     nats = reading = None
     date = (pdf["date"] if pdf else None) or (master["date"] if master else None)
     if pdf:
@@ -740,9 +804,12 @@ def run(a):
     replaced = {}
     for s in songs:
         name = f"Pujian Jemaat {s['label']} - {s['title']}"
-        pro_files[name + ".pro"] = build_song(parts, s, per)
+        b, sfiles, mnote = build_song(parts, s, per, media_root)
+        pro_files[name + ".pro"] = b
+        for fn, path in sfiles:
+            media_files[media_root.lstrip("/") + "/" + fn] = path
         replaced[s["label"]] = name
-        note = f"{sum(len(x['lines']) for x in s['sections'])} lines, {per} per slide"
+        note = f"{sum(len(x['lines']) for x in s['sections'])} lines, {per} per slide" + (f"; {mnote}" if mnote else "")
         if s.get("partial"):
             note = "only the first lyric slide is in the master deck: add the PDF to get every lyric"
         report.append(dict(item=name, status="partial" if s.get("partial") else "generated", note=note))

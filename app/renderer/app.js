@@ -313,19 +313,23 @@ function renderHelp() {
 function showTab(name) {
   if (name === 'settings') renderSettings();
   if (name === 'import') { impFillTemplates(); impSync(); }
-  $('src-import').classList.toggle('on', name === 'import'); document.body.classList.toggle('importing', name === 'import');
+  const imp = name === 'import';
+  document.body.classList.toggle('importing', imp);
+  $('imp').dataset.focus = IMP.focus;
+  for (const [id, on] of [['st-pro', !imp], ['st-pdf', imp && IMP.focus === 'pdf'], ['st-pptx', imp && IMP.focus === 'pptx']]) { $(id).classList.toggle('on', on); $(id).setAttribute('aria-selected', on ? 'true' : 'false'); }
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'view-' + name));
 }
 document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
-$('src-import').onclick = () => showTab('import');
-$('src-import').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showTab('import'); } };
+$('st-pro').onclick = () => { if (document.body.classList.contains('importing')) showTab('playlist'); };
+$('st-pdf').onclick = () => { IMP.focus = 'pdf'; showTab('import'); };
+$('st-pptx').onclick = () => { IMP.focus = 'pptx'; showTab('import'); };
 
 // ------------------------------------------------------------------ import: playlist from a worship script and decks
-const IMP = { pdf: '', khotbah: '', master: '', template: '', lines: 2, busy: false, last: null };
+const IMP = { pdf: '', khotbah: '', master: '', template: '', lines: 2, busy: false, last: null, focus: 'pdf' };
 function impSync() {
   for (const k of ['pdf', 'khotbah', 'master']) {
-    $('imp-' + k).textContent = IMP[k] ? baseName(IMP[k]) : 'none'; $('imp-' + k).title = IMP[k];
+    $('imp-' + k).textContent = IMP[k] ? baseName(IMP[k]) : (k === 'pdf' ? 'No file chosen (PDF only)' : 'No file chosen (PowerPoint only)'); $('imp-' + k).title = IMP[k];
     $('imp-' + k + '-x').hidden = !IMP[k];
   }
   const any = !!(IMP.pdf || IMP.khotbah || IMP.master);

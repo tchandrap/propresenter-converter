@@ -38,6 +38,11 @@ check("rtf keeps the formatting", "\\fs196 \\cf2 \\outl0\\strokewidth-20 \\strok
 check("rtf escapes the apostrophe and breaks the line", "\\'92na Yesus\\\nbaris dua}" in new and "Old text" not in new)
 check("rtf of a run with several sizes keeps the first runs", I.rtf_set("{\\rtf1\\f0\\fs200 \\cf2 P\n\\fs140 :  \n\\fs160 old}", "new").startswith("{\\rtf1\\f0\\fs200 \\cf2 P\n\\fs140 :  \n\\fs160 new"))
 
+# song numbers: two songs in one slot are 4 and 4b
+songs = [dict(n=3), dict(n=4), dict(n=4), dict(n=5)]
+I.assign_labels(songs)
+check("song labels 3, 4, 4b, 5", [s["label"] for s in songs] == ["3", "4", "4b", "5"])
+
 # protobuf: what is written reads back the same
 nodes = [(1, 0, 7), (2, 2, I.S("hello")), (3, 2, I.M([(1, 2, I.S("A580084E-8A07-4CFE-AD9C-E6E56935FCE7")), (5, 5, 1.5)])), (4, 1, 2.25)]
 back = P.parse(I.enc(nodes))
