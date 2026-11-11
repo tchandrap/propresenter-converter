@@ -46,6 +46,7 @@ jobs:
         run: |
           python3 -m pip install -r engine/requirements.txt
           python3 tests/engine_test.py python3 engine/pp2mp4.py
+          python3 tests/import_test.py
 
       - name: Build the app and the .dmg
         run: bash scripts/build-macos.sh

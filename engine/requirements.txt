@@ -1,3 +1,5 @@
 pillow>=10.0
 numpy>=1.24
 imageio-ffmpeg>=0.4.9
+pypdf>=4.0
+python-pptx>=0.6.23

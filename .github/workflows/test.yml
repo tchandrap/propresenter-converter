@@ -19,4 +19,6 @@ jobs:
           python-version: '3.12'
       - run: python3 -m pip install -r engine/requirements.txt
       - name: Run the engine against a synthetic playlist
-        run: python3 tests/engine_test.py python3 engine/pp2mp4.py
+        run: |
+          python3 tests/engine_test.py python3 engine/pp2mp4.py
+          python3 tests/import_test.py

@@ -25,6 +25,7 @@
       <button class="tab on" data-tab="playlist">Playlist items</button>
       <button class="tab" data-tab="placeholders">Placeholders <span id="ph-count" class="pill"></span></button>
       <button class="tab" data-tab="help">Not in the list?</button>
+      <button class="tab" data-tab="import">Import</button>
       <button class="tab tab-right" data-tab="settings">Settings</button>
     </nav>
 
@@ -51,6 +52,21 @@
         <span class="muted" id="ph-src"></span>
       </div>
       <div id="ph-table" class="list"></div>
+    </section>
+
+    <section id="view-import" class="view">
+      <div class="settings imp">
+        <div class="pp-h">Make a playlist from this week's files</div>
+        <p class="muted hint top">Add any of these. One is enough. SlideBridge builds a ProPresenter playlist from them, using the look of a playlist you already finished, so the songs, readings and sermon slides come out in your usual style.</p>
+        <div class="srow"><span class="k">Worship script:</span><div class="v"><span id="imp-pdf" class="pp-path"></span><button id="imp-pdf-pick" class="btn">Choose PDF…</button><button id="imp-pdf-x" class="btn ghost" hidden>Clear</button></div></div>
+        <div class="srow"><span class="k">Sermon deck:</span><div class="v"><span id="imp-khotbah" class="pp-path"></span><button id="imp-khotbah-pick" class="btn">Choose PowerPoint…</button><button id="imp-khotbah-x" class="btn ghost" hidden>Clear</button></div></div>
+        <div class="srow"><span class="k">Master deck:</span><div class="v"><span id="imp-master" class="pp-path"></span><button id="imp-master-pick" class="btn">Choose PowerPoint…</button><button id="imp-master-x" class="btn ghost" hidden>Clear</button></div></div>
+        <div class="pp-h spaced">Look and layout</div>
+        <div class="srow"><span class="k">Copy the look from:</span><div class="v"><select id="imp-template" class="input"></select></div></div>
+        <div class="srow"><span class="k">Lines per slide:</span><div class="v"><input id="imp-lines" class="input num" type="number" min="1" max="8" step="1" value="2"><span class="muted">lyric lines on each song slide</span></div></div>
+        <div class="srow"><span class="k"></span><div class="v"><span id="imp-make-wrap" class="tipwrap"><button id="imp-make" class="btn primary" disabled>Create playlist…</button><span id="imp-tip" class="tip" role="tooltip"></span></span><button id="imp-cancel" class="btn danger" hidden>Cancel</button><span id="imp-busy" class="muted" hidden>Building…</span></div></div>
+        <div id="imp-result" hidden></div>
+      </div>
     </section>
 
     <section id="view-settings" class="view">

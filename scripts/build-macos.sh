@@ -29,7 +29,7 @@ swiftc -O "$BUILD/rtf2png.swift" -o "$BUILD/rtf2png"
 echo "== 3/5 Freeze the engine (Python, numpy, Pillow, ffmpeg inside)"
 "$BUILD/venv/bin/pyinstaller" --noconfirm --onedir --name pp2mp4-engine \
   --distpath "$BUILD/engine-dist" --workpath "$BUILD/pyi-work" --specpath "$BUILD" \
-  --collect-all imageio_ffmpeg --exclude-module tkinter "$ROOT/engine/pp2mp4.py"
+  --collect-all imageio_ffmpeg --collect-all pptx --hidden-import ppimport --hidden-import pypdf --exclude-module tkinter "$ROOT/engine/pp2mp4.py"
 
 echo "== 4/5 Electron app"
 cd "$ROOT/app"

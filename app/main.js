@@ -28,7 +28,7 @@ let cancelled = false;
 
 // ---- small config file (last output folder, formats, recent .proplaylist files)
 const cfgPath = () => path.join(app.getPath('userData'), 'config.json');
-const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', recent: [], ppRoot: '', theme: '', pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
+const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', recent: [], ppRoot: '', theme: '', importDir: '', importTemplate: '', importLines: 2, pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
 function readCfg() {
   try {
     const saved = JSON.parse(fs.readFileSync(cfgPath(), 'utf8'));
@@ -170,6 +170,47 @@ ipcMain.handle('pick-folder', async (_e, start, o) => {
     defaultPath: start || app.getPath('desktop'), buttonLabel: o.button || 'Choose',
   });
   return r.canceled ? null : r.filePaths[0];
+});
+
+// ---- Import: build a playlist from a worship script (PDF) and PowerPoint decks
+ipcMain.handle('pick-input', async (_e, kind) => {
+  const spec = {
+    pdf: { title: 'Choose the worship script (PDF)', filters: [{ name: 'PDF', extensions: ['pdf'] }] },
+    pptx: { title: 'Choose a PowerPoint deck', filters: [{ name: 'PowerPoint', extensions: ['pptx'] }] },
+    template: { title: 'Choose a finished playlist to copy the look from', filters: [{ name: 'ProPresenter playlist', extensions: ['proplaylist'] }] },
+  }[kind];
+  if (!spec) return null;
+  const r = await dialog.showOpenDialog(win, { ...spec, properties: ['openFile'], defaultPath: readCfg().importDir || app.getPath('downloads') });
+  return r.canceled ? null : r.filePaths[0];
+});
+
+ipcMain.handle('import-run', async (_e, o) => {
+  const dir = path.join(os.tmpdir(), 'slidebridge-import');
+  fs.mkdirSync(dir, { recursive: true });
+  const tmp = path.join(dir, `${Date.now()}.proplaylist`);
+  const args = ['--import-out', tmp, '--json', '--lines-per-slide', String(Math.max(1, Math.min(8, Number(o.lines) || 2)))];
+  if (o.pdf) args.push('--import-script', o.pdf);
+  if (o.khotbah) args.push('--import-khotbah', o.khotbah);
+  if (o.master) args.push('--import-master', o.master);
+  if (o.template) args.push('--template-playlist', o.template);
+  const r = await runEngine(args, { track: true });
+  if (r.code !== 0) return { error: lastLine(r.err) || lastLine(r.out) || 'Could not build the playlist.' };
+  try { return { ...JSON.parse(r.out), tmp }; } catch { return { error: 'The engine returned unreadable data.' }; }
+});
+
+ipcMain.handle('import-save', async (_e, { tmp, name }) => {
+  if (!tmp || !fs.existsSync(tmp)) return { error: 'The built playlist is gone. Create it again.' };
+  const safe = String(name || 'KU').replace(/[\\/:*?"<>|]+/g, '-');
+  const r = await dialog.showSaveDialog(win, {
+    title: 'Save the playlist', defaultPath: path.join(readCfg().importDir || app.getPath('documents'), `${safe}.proplaylist`),
+    buttonLabel: 'Save', filters: [{ name: 'ProPresenter playlist', extensions: ['proplaylist'] }],
+    message: 'Open the saved file in ProPresenter: double-click it, or drag it onto the Playlists sidebar.',
+  });
+  if (r.canceled || !r.filePath) return null;
+  const out = r.filePath.toLowerCase().endsWith('.proplaylist') ? r.filePath : r.filePath + '.proplaylist';
+  try { fs.copyFileSync(tmp, out); } catch (e) { return { error: 'Could not save: ' + e.message }; }
+  writeCfg({ ...readCfg(), importDir: path.dirname(out) });
+  return { path: out };
 });
 
 ipcMain.handle('pick-proplaylist', async () => {

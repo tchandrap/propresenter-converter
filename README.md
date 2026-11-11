@@ -29,6 +29,11 @@ If macOS says it is damaged, run once in Terminal: `xattr -dr com.apple.quaranti
 - Keeps the **text you typed on a video or picture** in ProPresenter (for example a thank-you slide) and centres it
   the way ProPresenter does.
 - In the preview, set for each slide **how long it is shown** and, for videos, **which moment becomes the PDF picture**.
+- **Import:** builds a new playlist (`.proplaylist`) from your worship script (PDF), the preacher's PowerPoint and the
+  master PowerPoint from GII national. Any one of them is enough. Songs get their full lyrics (2 lines per slide by
+  default), the Nats Panggilan and Bible reading slides are rebuilt, the sermon deck becomes a presentation, and the
+  look (fonts, colours, groups, actions) is copied from a playlist you already finished. Motions are picked at random
+  from that playlist's own motions. Open the result in ProPresenter by double-clicking it.
 - Opens a `.proplaylist` file directly, or reads ProPresenter's own library.
 
 ProPresenter keeps themes outside the presentation files, so text-only slides are drawn on a dark stand-in

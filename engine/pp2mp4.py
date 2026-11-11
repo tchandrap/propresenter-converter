@@ -1195,6 +1195,13 @@ def main():
     ap.add_argument("--library", help="only look in libraries whose folder name contains this text")
     ap.add_argument("--list", action="store_true", help="list presentations in the ProPresenter library")
     ap.add_argument("--pp-root", metavar="DIR", help="ProPresenter workspace folder (the one that holds Libraries and Playlists); default: ~/Library/Application Support/RenewedVision/ProPresenter/UserWorkspaces/ProPresenter")
+    ap.add_argument("--import-script", metavar="PDF", help="build a playlist from this worship script (PDF)")
+    ap.add_argument("--import-khotbah", metavar="PPTX", help="... and this preacher's deck (PowerPoint)")
+    ap.add_argument("--import-master", metavar="PPTX", help="... and this master deck from GII national (PowerPoint)")
+    ap.add_argument("--import-out", metavar="FILE", help="where to write the new .proplaylist")
+    ap.add_argument("--template-playlist", metavar="NAME_OR_FILE", help="playlist whose look is copied: a .proplaylist file or a ProPresenter playlist name (default: the newest 'Template' playlist with songs)")
+    ap.add_argument("--playlist-name", metavar="NAME", help="name of the new playlist (default: KU - yyyymmdd)")
+    ap.add_argument("--lines-per-slide", type=int, default=2, metavar="N", help="lyric lines per slide (default 2)")
     ap.add_argument("--proplaylist", metavar="FILE", help="read playlists from this .proplaylist file (no import needed)")
     ap.add_argument("--playlists", action="store_true", help="show the playlist tree with numbered items")
     ap.add_argument("--placeholders", action="store_true", help="list every placeholder and the playlist it belongs to")
@@ -1230,6 +1237,22 @@ def main():
             a.settings = {int(k): v for k, v in json.load(open(a.slide_settings)).items()}
         except Exception as ex:
             sys.exit(f"Could not read --slide-settings: {ex}")
+
+    if a.import_script or a.import_khotbah or a.import_master:
+        if not a.import_out:
+            sys.exit("--import-out FILE.proplaylist is needed")
+        import ppimport
+        ppimport.init(sys.modules[__name__])
+        res = ppimport.run(a)
+        if a.json:
+            print(json.dumps(res, indent=1))
+        else:
+            print(f"wrote {res['out']}  ({res['items']} items)")
+            for r in res["report"]:
+                print(f"  {r['status']:10s} {r['item']}  {r['note']}")
+            for n in res["notes"]:
+                print("  note:", n)
+        return
 
     if a.list:
         for p in sorted(all_presentations()):

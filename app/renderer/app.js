@@ -311,10 +311,80 @@ function renderHelp() {
 // ------------------------------------------------------------------ tabs, bottom bar
 function showTab(name) {
   if (name === 'settings') renderSettings();
+  if (name === 'import') { impFillTemplates(); impSync(); }
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'view-' + name));
 }
 document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+
+// ------------------------------------------------------------------ import: playlist from a worship script and decks
+const IMP = { pdf: '', khotbah: '', master: '', template: '', lines: 2, busy: false, last: null };
+function impSync() {
+  for (const k of ['pdf', 'khotbah', 'master']) {
+    $('imp-' + k).textContent = IMP[k] ? baseName(IMP[k]) : 'none'; $('imp-' + k).title = IMP[k];
+    $('imp-' + k + '-x').hidden = !IMP[k];
+  }
+  const any = !!(IMP.pdf || IMP.khotbah || IMP.master);
+  $('imp-make').disabled = IMP.busy || !any;
+  $('imp-make-wrap').classList.toggle('blocked', !IMP.busy && !any);
+  $('imp-tip').replaceChildren(h('b', { text: 'Not ready yet' }), h('div', { text: 'Add the worship script or a PowerPoint deck.' }));
+  $('imp-busy').hidden = !IMP.busy; $('imp-cancel').hidden = !IMP.busy;
+  for (const id of ['imp-pdf-pick', 'imp-khotbah-pick', 'imp-master-pick', 'imp-template', 'imp-lines']) $(id).disabled = IMP.busy;
+}
+function impFillTemplates() {
+  const sel = $('imp-template'); sel.replaceChildren();
+  sel.append(h('option', { value: '', text: 'Automatic: the newest template playlist in ProPresenter' }));
+  const t = S.trees[LIB];
+  for (const p of (t && t.tree ? flatPlaylists(t.tree) : [])) if (p.items && p.items.length) sel.append(h('option', { value: 'lib:' + p.name, text: 'ProPresenter: ' + p.name }));
+  if (IMP.template && IMP.template.startsWith('file:')) sel.append(h('option', { value: IMP.template, text: 'File: ' + baseName(IMP.template.slice(5)) }));
+  sel.append(h('option', { value: '__file', text: 'Choose a finished .proplaylist file…' }));
+  sel.value = [...sel.options].some((o) => o.value === IMP.template) ? IMP.template : '';
+}
+for (const k of ['pdf', 'khotbah', 'master']) {
+  $('imp-' + k + '-pick').onclick = async () => { const f = await window.pp.pickInput(k === 'pdf' ? 'pdf' : 'pptx'); if (f) { IMP[k] = f; impSync(); } };
+  $('imp-' + k + '-x').onclick = () => { IMP[k] = ''; impSync(); };
+}
+$('imp-template').onchange = async () => {
+  const v = $('imp-template').value;
+  if (v === '__file') {
+    const f = await window.pp.pickInput('template');
+    IMP.template = f ? 'file:' + f : IMP.template;
+  } else IMP.template = v;
+  S.cfg = await window.pp.cfgSet({ importTemplate: IMP.template }); impFillTemplates();
+};
+$('imp-lines').onchange = async () => { const v = Math.max(1, Math.min(8, Math.round(Number($('imp-lines').value) || 2))); $('imp-lines').value = v; IMP.lines = v; S.cfg = await window.pp.cfgSet({ importLines: v }); };
+const impTemplateArg = () => (IMP.template.startsWith('file:') ? IMP.template.slice(5) : IMP.template.startsWith('lib:') ? IMP.template.slice(4) : '');
+function impShow(res) {
+  const box = $('imp-result'); box.hidden = false; box.className = 'imp-res'; box.replaceChildren();
+  if (res.error) { box.append(h('div', { class: 'note err', text: res.error })); return; }
+  box.append(h('h3', { text: `${res.playlist}: ${res.items} items` }));
+  for (const r of res.report) box.append(h('div', { class: 'imp-row' }, h('span', { class: 'chip ' + r.status, text: r.status === 'generated' ? 'made' : r.status === 'partial' ? 'partly' : r.status }), h('span', { class: 'nm', text: r.item }), h('span', { class: 'muted', text: r.note || '' })));
+  if (res.notes && res.notes.length) box.append(h('div', { class: 'note warn imp-notes' }, h('b', { text: 'Still to do by hand' }), ...res.notes.map((n) => h('div', { text: '• ' + n }))));
+  box.append(h('div', { class: 'note imp-notes', text: 'Everything not listed above is copied unchanged from the template playlist. Motion backgrounds for songs are picked at random from the template\'s own motions: swap them in ProPresenter if you like.' }));
+  const act = h('div', { class: 'imp-actions' });
+  const save = h('button', { class: 'btn primary', text: res.saved ? 'Save another copy…' : 'Save…' });
+  save.onclick = async () => { const r = await window.pp.importSave({ tmp: res.tmp, name: res.playlist }); if (r && r.path) { res.saved = r.path; impShow(res); } else if (r && r.error) box.append(h('div', { class: 'note err', text: r.error })); };
+  act.append(save);
+  if (res.saved) {
+    act.append(h('span', { class: 'ok', text: '✓ Saved: ' + baseName(res.saved) }),
+      h('button', { class: 'btn', text: 'Show in Finder', onclick: () => window.pp.reveal(res.saved) }),
+      h('button', { class: 'btn', text: 'Review it here', onclick: async () => {
+        const recent = [res.saved, ...(S.cfg.recent || []).filter((x) => x !== res.saved)].slice(0, 12);
+        S.cfg = await window.pp.cfgSet({ recent }); delete S.trees[res.saved]; showTab('playlist'); await selectSource(res.saved);
+      } }));
+  }
+  box.append(act);
+}
+$('imp-make').onclick = async () => {
+  IMP.busy = true; impSync(); $('imp-result').hidden = true;
+  const res = await window.pp.importRun({ pdf: IMP.pdf, khotbah: IMP.khotbah, master: IMP.master, template: impTemplateArg(), lines: IMP.lines });
+  IMP.busy = false; impSync();
+  if (res.error) { impShow(res); return; }
+  const saved = await window.pp.importSave({ tmp: res.tmp, name: res.playlist });
+  if (saved && saved.path) res.saved = saved.path;
+  IMP.last = res; impShow(res);
+};
+$('imp-cancel').onclick = () => window.pp.cancel();
 
 // ------------------------------------------------------------------ settings: theme and the ProPresenter folder
 function renderSettings() {
@@ -453,6 +523,7 @@ function showResults(results) {
 (async function init() {
   S.cfg = { ...S.cfg, ...(await window.pp.cfgGet()) };
   if (S.cfg.theme) applyTheme(S.cfg.theme);
+  IMP.template = S.cfg.importTemplate || ''; IMP.lines = S.cfg.importLines || 2; $('imp-lines').value = IMP.lines;
   const info = await window.pp.engineInfo();
   renderHelp(); renderSources(); updateMake();
   if (!info.ok) { $('tree').replaceChildren(h('div', { class: 'note err', text: 'Engine not found: ' + info.engine })); return; }
