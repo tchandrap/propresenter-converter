@@ -166,7 +166,9 @@ button, input { font: inherit; color: inherit; }
 .pp-check .box { width: 22px; height: 22px; border-radius: 6px; background: var(--pp-box); display: inline-flex; align-items: center; justify-content: center; color: transparent; font-size: 14px; line-height: 1; }
 .pp-check input:checked + .box { background: var(--pp-blue); color: #fff; }
 .pp-check input:focus-visible + .box { box-shadow: 0 0 0 2px var(--pp-ring); }
-.pp-tabs { display: flex; border-radius: 8px; overflow: hidden; border: 1px solid var(--pp-line); }
+.pp-tabs { display: flex; border-radius: 8px; border: 1px solid var(--pp-line); }
+.pp-tab:first-child { border-radius: 7px 0 0 7px; }
+.pp-tab:last-child { border-radius: 0 7px 7px 0; }
 .pp-tab { display: flex; align-items: center; gap: 8px; padding: 7px 18px; border: 0; border-right: 1px solid var(--pp-line); background: var(--pp-tab); color: var(--pp-tab-text); font-weight: 600; cursor: pointer; }
 .pp-tab:last-child { border-right: 0; }
 .pp-tab:hover { background: var(--pp-tab-hover); }
@@ -212,3 +214,14 @@ button, input { font: inherit; color: inherit; }
 .imp-row .nm { font-weight: 600; }
 .imp-notes { margin-top: 12px; }
 .imp-actions { display: flex; gap: 8px; margin-top: 14px; align-items: center; flex-wrap: wrap; }
+
+/* hover descriptions */
+.has-tip { position: relative; }
+.has-tip::after { content: attr(data-tip); display: none; position: absolute; z-index: 30; width: max-content; max-width: 260px; padding: 8px 10px; border-radius: 6px;
+  background: #26272c; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; box-shadow: 0 4px 14px rgba(0,0,0,.3); pointer-events: none; }
+.has-tip:hover::after { display: block; }
+.tip-below::after { top: calc(100% + 6px); left: 0; max-width: 236px; }
+.tip-top::after { bottom: calc(100% + 10px); left: 0; max-width: 300px; }
+.src.import { gap: 8px; }
+.src.import svg { flex: none; color: var(--accent); }
+.importing #sources .src.on { background: transparent; border-color: transparent; }

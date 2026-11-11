@@ -90,6 +90,7 @@ async function loadTree(src, force) {
 }
 
 async function selectSource(src, keepPlaylist) {
+  if (document.body.classList.contains('importing')) showTab('playlist');
   S.source = src; renderSources();
   $('tree').replaceChildren(h('div', { class: 'empty', text: 'Reading…' }));
   await loadTree(src);
@@ -312,10 +313,13 @@ function renderHelp() {
 function showTab(name) {
   if (name === 'settings') renderSettings();
   if (name === 'import') { impFillTemplates(); impSync(); }
+  $('src-import').classList.toggle('on', name === 'import'); document.body.classList.toggle('importing', name === 'import');
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'view-' + name));
 }
 document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+$('src-import').onclick = () => showTab('import');
+$('src-import').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showTab('import'); } };
 
 // ------------------------------------------------------------------ import: playlist from a worship script and decks
 const IMP = { pdf: '', khotbah: '', master: '', template: '', lines: 2, busy: false, last: null };
