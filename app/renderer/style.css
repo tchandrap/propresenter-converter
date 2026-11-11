@@ -225,3 +225,13 @@ button, input { font: inherit; color: inherit; }
 .src.import { gap: 8px; }
 .src.import svg { flex: none; color: var(--accent); }
 .importing #sources .src.on { background: transparent; border-color: transparent; }
+
+/* source groups */
+.side-g { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 4px; }
+#pl-block { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
+.importing #pl-block, .importing #bar { display: none; }
+.importing #tabs .tab:not(.tab-right) { display: none; }
+.badge { font-size: 10px; letter-spacing: 0; text-transform: none; font-weight: 600; background: var(--accent); color: var(--accent-text); border-radius: 10px; padding: 1px 8px; margin-left: 8px; vertical-align: 1px; }
+.pp-h .opt { font-size: 10px; letter-spacing: 0; text-transform: none; font-weight: 500; margin-left: 8px; }
+.srow .line { font-size: 12px; grid-column: 2; }
+.target { padding: 4px 10px; border-radius: 6px; background: var(--panel2); border: 1px solid var(--line); font-weight: 600; }

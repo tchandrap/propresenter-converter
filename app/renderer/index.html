@@ -12,13 +12,17 @@
   <aside id="side">
     <div class="brand"><img src="logo.png" alt="" class="logo"><div>SlideBridge<br><span>ProPresenter converter to MP4 / PDF</span></div></div>
     <div class="side-h">Sources</div>
+    <div class="side-g">ProPresenter</div>
     <div id="sources"></div>
-    <div id="src-import" class="src import has-tip tip-below" role="button" tabindex="0" data-tip="Build a ProPresenter playlist from this week's files: the worship script (PDF), the sermon deck and the master deck (PowerPoint). Songs get their full lyrics, and the readings and sermon slides are rebuilt in the style of a playlist you already finished."><svg viewBox="0 0 40 20" width="36" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2h7l3 3v13H3z"/><path d="M10 2v3h3"/><path d="M17 10h8m-3-3 3 3-3 3"/><rect x="28" y="3" width="10" height="14" rx="2"/><path d="M31 8h4M31 12h4"/></svg><span class="nm">PDF → ProPresenter playlist</span></div>
     <button id="open-pl" class="btn ghost wide">Open .proplaylist file…</button>
     <button id="refresh" class="btn ghost wide">Refresh</button>
-    <div class="side-h">Playlists</div>
-    <input id="filter" class="input" type="search" placeholder="Filter playlists">
-    <div id="tree"></div>
+    <div class="side-g">PDF</div>
+    <div id="src-import" class="src import has-tip tip-below" role="button" tabindex="0" data-tip="Build a ProPresenter playlist from this week's worship script (PDF). Songs get their full lyrics, and the Nats, Bible reading and sermon slides are rebuilt in the style of a playlist you already finished. The sermon deck and the master deck (PowerPoint) are optional extras."><svg viewBox="0 0 40 20" width="36" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2h7l3 3v13H3z"/><path d="M10 2v3h3"/><path d="M17 10h8m-3-3 3 3-3 3"/><rect x="28" y="3" width="10" height="14" rx="2"/><path d="M31 8h4M31 12h4"/></svg><span class="nm">Worship script → playlist</span></div>
+    <div id="pl-block">
+      <div class="side-h">Playlists</div>
+      <input id="filter" class="input" type="search" placeholder="Filter playlists">
+      <div id="tree"></div>
+    </div>
   </aside>
 
   <main id="main">
@@ -56,14 +60,23 @@
 
     <section id="view-import" class="view">
       <div class="settings imp">
-        <div class="pp-h">Make a playlist from this week's files</div>
-        <p class="muted hint top">Add any of these. One is enough. SlideBridge builds a ProPresenter playlist from them, using the look of a playlist you already finished, so the songs, readings and sermon slides come out in your usual style.</p>
-        <div class="srow"><span class="k">Worship script:</span><div class="v"><span id="imp-pdf" class="pp-path"></span><button id="imp-pdf-pick" class="btn">Choose PDF…</button><button id="imp-pdf-x" class="btn ghost" hidden>Clear</button></div></div>
+        <div class="pp-h">PDF → ProPresenter playlist</div>
+        <p class="muted hint top">Start from the worship script. SlideBridge builds a ProPresenter playlist from it, in the look of a playlist you already finished, so the songs, readings and sermon slides come out in your usual style.</p>
+
+        <div class="pp-h spaced">Worship script <span class="badge">Recommended</span></div>
+        <div class="srow"><span class="k">PDF:</span><div class="v"><span id="imp-pdf" class="pp-path"></span><button id="imp-pdf-pick" class="btn">Choose PDF…</button><button id="imp-pdf-x" class="btn ghost" hidden>Clear</button></div></div>
+        <div class="srow"><span class="k"></span><div class="muted line">The order of service, Nats Panggilan, Bible reading and the full lyrics of every song.</div></div>
+
+        <div class="pp-h spaced">Complementary <span class="muted opt">optional</span></div>
         <div class="srow"><span class="k">Sermon deck:</span><div class="v"><span id="imp-khotbah" class="pp-path"></span><button id="imp-khotbah-pick" class="btn">Choose PowerPoint…</button><button id="imp-khotbah-x" class="btn ghost" hidden>Clear</button></div></div>
+        <div class="srow"><span class="k"></span><div class="muted line">The preacher's PowerPoint. Each slide becomes a slide in the playlist.</div></div>
         <div class="srow"><span class="k">Master deck:</span><div class="v"><span id="imp-master" class="pp-path"></span><button id="imp-master-pick" class="btn">Choose PowerPoint…</button><button id="imp-master-x" class="btn ghost" hidden>Clear</button></div></div>
+        <div class="srow"><span class="k"></span><div class="muted line">The master deck from GII national. Fills in what the script does not have, such as the date. It only holds the first lyric slide of each song.</div></div>
+
         <div class="pp-h spaced">Look and layout</div>
         <div class="srow"><span class="k">Copy the look from:</span><div class="v"><select id="imp-template" class="input"></select></div></div>
         <div class="srow"><span class="k">Lines per slide:</span><div class="v"><input id="imp-lines" class="input num" type="number" min="1" max="8" step="1" value="2"><span class="muted">lyric lines on each song slide</span></div></div>
+        <div class="srow"><span class="k">Creates:</span><div class="v"><span class="target">ProPresenter playlist (.proplaylist)</span></div></div>
         <div class="srow"><span class="k"></span><div class="v"><span id="imp-make-wrap" class="tipwrap"><button id="imp-make" class="btn primary" disabled>Create playlist…</button><span id="imp-tip" class="tip" role="tooltip"></span></span><button id="imp-cancel" class="btn danger" hidden>Cancel</button><span id="imp-busy" class="muted" hidden>Building…</span></div></div>
         <div id="imp-result" hidden></div>
       </div>
