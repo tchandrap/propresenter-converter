@@ -144,6 +144,14 @@ def rtf_set(rtf, text):
     return rtf[:start] + rtf_escape(text) + "}"
 
 
+MONTH_NAMES = ["", "Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"]
+
+
+def date_label(d):
+    """The name of the arrangement: the service date, as ProPresenter users here write it ('8 November 2026')."""
+    return f"{d.day} {MONTH_NAMES[d.month]} {d.year}" if d else "Sunday"
+
+
 def title_case_words(s):
     return " ".join(w[:1].upper() + w[1:] for w in s.split())
 
@@ -176,7 +184,7 @@ class Pres:
         return (P.sval(P.first(gi, 2)) or "") if gi else ""
 
 
-def group_node(look, cue_ids, name=None):
+def group_node(look, cue_ids, name=None, gid=None):
     """A group copied from `look` (colour, hot key, ...) with a new id, holding the given cues."""
     out = []
     for f, w, v in look:
@@ -184,7 +192,7 @@ def group_node(look, cue_ids, name=None):
             continue
         if f == 1:
             info = [x for x in P.msg(v) if x[0] != 1]
-            info = [(1, 2, M([(1, 2, S(new_id()))]))] + info
+            info = [(1, 2, M([(1, 2, S(gid or new_id()))]))] + info
             if name is not None:
                 info = set_str(info, 2, name)
             v = M(info)
@@ -214,16 +222,24 @@ def fresh(cue):
     return remap_ids(cue)
 
 
-def compose_pres(top, name, groups_with_cues):
-    """groups_with_cues: [(look_nodes, name_or_None, [cue_nodes])] in playback order -> .pro bytes."""
+def compose_pres(top, name, groups_with_cues, arrangement=None):
+    """groups_with_cues: [(look_nodes, name_or_None, [cue_nodes])] -> .pro bytes. The groups are listed once each;
+    `arrangement` = (name, [index of a group, ...]) adds an arrangement that plays them in that order (a group can repeat)."""
     top = [(f, w, S(name)) if f == 3 else ((f, w, M([(1, 2, S(new_id()))])) if f == 2 else (f, w, v)) for f, w, v in top]
-    low = [x for x in top if x[0] < 12]
+    low = [x for x in top if x[0] < 12 and x[0] not in (10, 11)]
     high = [x for x in top if x[0] > 13]
-    gnodes, cnodes = [], []
+    gnodes, cnodes, gids = [], [], []
     for look, gname, cues in groups_with_cues:
         ids = [P.uuid_of(c) for c in cues]
-        gnodes.append((12, 2, M(group_node(look, ids, gname))))
+        gid = new_id()
+        gids.append(gid)
+        gnodes.append((12, 2, M(group_node(look, ids, gname, gid))))
         cnodes += [(13, 2, M(c)) for c in cues]
+    if arrangement:
+        aname, order = arrangement
+        aid = new_id()
+        low += [(10, 2, M([(1, 2, S(aid))])),
+                (11, 2, M([(1, 2, M([(1, 2, S(aid))])), (2, 2, S(aname))] + [(3, 2, M([(1, 2, S(gids[i]))])) for i in order]))]
     return enc(low + gnodes + cnodes + high)
 
 
@@ -790,7 +806,7 @@ def group_title(label, counters):
     return label.title()
 
 
-def build_song(parts, song, per_slide=2, media_root=""):
+def build_song(parts, song, per_slide=2, media_root="", name=None, arr_name=""):
     """-> (.pro bytes, [(file name, path)], note) for one song: a motion, a title slide, then the lyrics `per_slide` lines at a time.
     The motion is picked at random among the template's motions that exist on this computer. When none does, the
     background picture from the master deck is used; with neither, a template motion is kept as a link."""
@@ -812,21 +828,35 @@ def build_song(parts, song, per_slide=2, media_root=""):
         text = "\n".join(lines)
         return fresh(retext(parts.lyric_cue, lambda i, info: text if info["w"] > 1500 and info["h"] > 700 else None))
     groups = [(parts.group_blank, None, [media])]
+    order = [0]
     if any(s["label"] for s in song["sections"]):
         groups.append((parts.group_blank, None, [title_cue]))
-        counters = {}
+        order.append(1)
+        counters, seen, used = {}, {}, set()
         for sec in song["sections"]:
             if sec["label"] == "interlude" or not sec["lines"]:
                 continue
-            gname = group_title(sec["label"] or "verse", counters)
-            look = parts.group_looks.get(gname) or parts.group_looks.get("Verse") or parts.group_blank
-            groups.append((look, gname, [lyric(ch) for ch in chunk(sec["lines"], per_slide)]))
+            base = group_title(sec["label"] or "verse", {}).split(" ")[0]
+            key = (base, tuple(_norm(x) for x in sec["lines"]))
+            if key not in seen:                             # a section sung again is the same group, played again by the arrangement
+                gname = group_title(sec["label"] or "verse", counters)
+                if gname in used:
+                    k = 2
+                    while f"{gname} {k}" in used:
+                        k += 1
+                    gname = f"{gname} {k}"
+                used.add(gname)
+                look = parts.group_looks.get(gname) or parts.group_looks.get(base) or parts.group_looks.get("Verse") or parts.group_blank
+                groups.append((look, gname, [lyric(ch) for ch in chunk(sec["lines"], per_slide)]))
+                seen[key] = len(groups) - 1
+            order.append(seen[key])
     else:
         cues = [title_cue]
         for sec in song["sections"]:
             cues += [lyric(ch) for ch in chunk(sec["lines"], per_slide)]
         groups.append((parts.group_blank, None, cues))
-    return compose_pres(parts.song_top, f"Pujian Jemaat {song['label']} - {song['title']}", groups), files, note
+    arr = (arr_name or "Sunday", order) if len(order) > len(groups) else None
+    return compose_pres(parts.song_top, name or f"Pujian Jemaat {song['label']} - {song['title']}", groups, arr), files, note
 
 
 def split_verse(text, limit=125):
@@ -1006,12 +1036,13 @@ def run(a):
         if not (reading and reading["parts"]) and master["reading"] and master["reading"]["parts"]:
             reading = master["reading"]
 
+    arr_name = date_label(date)
     replaced = {}
     first_slot = song_slot(tpl.songs()[0][1]["name"]) if tpl.songs() else ("", "Pujian Jemaat", "1")
     pre, kw = first_slot[0], first_slot[1]
     for s in songs:
         name = f"{pre}{kw} {s['label']} - {s['title']}"
-        b, sfiles, mnote = build_song(parts, s, per, media_root)
+        b, sfiles, mnote = build_song(parts, s, per, media_root, name, arr_name)
         pro_files[name + ".pro"] = b
         for fn, path in sfiles:
             media_files[media_root.lstrip("/") + "/" + fn] = path
