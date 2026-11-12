@@ -146,7 +146,7 @@ button, input { font: inherit; color: inherit; }
 
 /* ProPresenter-style inspector look: dark panels, grey right-aligned labels, blue active tabs, field + slider */
 .pp .muted, .pp .path { color: var(--pp-muted); }
-.pv-opts { padding: 10px 14px 8px; border-bottom: 1px solid var(--pp-line); }
+.pv-opts { padding: 10px 14px 8px; border-top: 1px solid var(--pp-line); }
 .pp-top { display: flex; align-items: baseline; margin-bottom: 4px; }
 .pp-h { font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--pp-muted); }
 .pp-top .tot { margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -185,6 +185,10 @@ button, input { font: inherit; color: inherit; }
 
 /* settings */
 .tab-right { margin-left: auto; }
+.iconbtn { display: inline-flex; align-items: center; padding: 9px 10px; }
+.iconbtn:hover { color: var(--text); }
+#tabs { overflow: visible; }
+.tip-below-right::after { top: calc(100% + 4px); right: 0; left: auto; max-width: 260px; }
 .settings { max-width: 780px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 22px; align-self: flex-start; width: 100%; }
 .settings .pp-h { color: var(--muted); }
 .settings .pp-h.spaced { margin-top: 22px; }
@@ -230,7 +234,7 @@ button, input { font: inherit; color: inherit; }
 .side-g { margin-top: 8px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 0 4px; }
 #pl-block { display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
 .importing #pl-block, .importing #bar { display: none; }
-.importing #tabs .tab:not(.tab-right) { display: none; }
+.importing #tabs .tab:not(.iconbtn) { display: none; }
 .badge { font-size: 10px; letter-spacing: 0; text-transform: none; font-weight: 600; background: var(--accent); color: var(--accent-text); border-radius: 10px; padding: 1px 8px; margin-left: 8px; vertical-align: 1px; }
 .pp-h .opt { font-size: 10px; letter-spacing: 0; text-transform: none; font-weight: 500; margin-left: 8px; }
 .srow .line { font-size: 12px; grid-column: 2; }

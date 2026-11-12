@@ -40,8 +40,8 @@ const ICONS = {
   lock: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
   photo: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 4 3 3-2.5 4 3.5"/></svg>',
 };
-const icon = (name) => { const e = h('span', { class: 'ico' }); e.innerHTML = ICONS[name]; return e; };
-function timeControl({ value, min, max, step = 0.5, hard = max, total = null, title = '', ico = null, icoEl = null, commit }) {
+const icon = (name, title = '') => { const e = h('span', { class: 'ico', title }); e.innerHTML = ICONS[name]; return e; };
+function timeControl({ value, min, max, step = 0.5, hard = max, total = null, title = '', ico = null, icoTip = '', icoEl = null, commit }) {
   const field = h('input', { class: 'pp-field', type: 'text', inputmode: 'decimal', value: fmtS(value), title });
   const rng = h('input', { class: 'pp-range', type: 'range', min, max, step, value: Math.min(max, value), title });
   const paint = () => rng.style.setProperty('--p', (max > min ? ((rng.value - min) / (max - min)) * 100 : 0) + '%');
@@ -56,7 +56,7 @@ function timeControl({ value, min, max, step = 0.5, hard = max, total = null, ti
   };
   rng.oninput = () => { cur = Number(rng.value); field.value = fmtS(cur); paint(); };
   rng.onchange = () => commit(Number(rng.value));
-  const wrap = h('span', { class: 'pp-time' }, icoEl || (ico ? icon(ico) : null), field, rng, total != null ? h('span', { class: 'pp-total', text: fmtS(total), title: 'Length of the video' }) : null);
+  const wrap = h('span', { class: 'pp-time' }, icoEl || (ico ? icon(ico, icoTip) : null), field, rng, total != null ? h('span', { class: 'pp-total', text: fmtS(total), title: 'Length of the video (the slider stops here)' }) : null);
   wrap.set = (v) => { if (document.activeElement === field) return; cur = v; field.value = fmtS(v); rng.value = Math.min(max, v); paint(); };
   wrap.field = field;
   return wrap;
@@ -224,12 +224,12 @@ function drawPreview(it, r, scroll) {
           S.slideSettings = all; focusItem(it, true);
         };
       }
-      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'clock', icoEl: lockBtn, value: s.seconds, min: 0.5, max: isVid ? Math.max(1, s.vlen) : 60, step: 0.5, hard: 3600, total: isVid ? s.vlen : null,
+      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'clock', icoTip: 'Slide time: how long this slide stays on screen in the MP4.', icoEl: lockBtn, value: s.seconds, min: 0.5, max: isVid ? Math.max(1, s.vlen) : 60, step: 0.5, hard: 3600, total: isVid ? s.vlen : null,
         title: 'How long this slide stays on screen in the MP4. A video shorter than this holds its last frame; longer is cut. Type a number or drag.', commit: (v) => change(s.n, 'seconds', v) })));
     }
     if (S.cfg.pdf && isVid) {                           // which moment of the video becomes the PDF page
       const max = Math.max(0, Math.floor((s.vlen - 0.1) * 10) / 10), val = s.poster == null ? 0 : Math.min(max, s.poster);
-      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'photo', value: val, min: 0, max, step: 0.1, hard: max, total: s.vlen,
+      ctl.push(h('div', { class: 'c' }, timeControl({ ico: 'photo', icoTip: 'Picture time: which moment of the video becomes this slide\'s page in the PDF.', value: val, min: 0, max, step: 0.1, hard: max, total: s.vlen,
         title: 'Which moment of the video is the picture in the PDF. Type a number or drag.', commit: (v) => change(s.n, 'poster', v) })));
     }
     grid.append(h('div', { class: 'slide' },
@@ -390,6 +390,8 @@ function impShow(res) {
       h('button', { class: 'btn', text: 'Review it here', onclick: async () => {
         const recent = [res.saved, ...(S.cfg.recent || []).filter((x) => x !== res.saved)].slice(0, 12);
         S.cfg = await window.pp.cfgSet({ recent }); delete S.trees[res.saved]; showTab('playlist'); await selectSource(res.saved);
+        const t = S.trees[res.saved], pls = t && t.tree ? flatPlaylists(t.tree) : [];
+        if (pls.length) selectPlaylist(pls[0]);
       } }));
   }
   box.append(act);
@@ -498,6 +500,7 @@ $('open-pl').onclick = async () => {
   await selectSource(files[0]);
 };
 $('refresh').onclick = async () => {
+  if (document.body.classList.contains('importing')) { delete S.trees[LIB]; await loadTree(LIB); impFillTemplates(); impSync(); return; }
   delete S.trees[S.source]; delete S.phCache[S.source];
   const keep = S.playlist && S.playlist.uuid, focus = S.focus;
   await selectSource(S.source, true);
