@@ -188,7 +188,6 @@ button, input { font: inherit; color: inherit; }
 .iconbtn { display: inline-flex; align-items: center; padding: 9px 10px; }
 .iconbtn:hover { color: var(--text); }
 #tabs { overflow: visible; }
-.tip-below-right::after { top: calc(100% + 4px); right: 0; left: auto; max-width: 260px; }
 .settings { max-width: 780px; background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 22px; align-self: flex-start; width: 100%; }
 .settings .pp-h { color: var(--muted); }
 .settings .pp-h.spaced { margin-top: 22px; }
@@ -221,11 +220,7 @@ button, input { font: inherit; color: inherit; }
 
 /* hover descriptions */
 .has-tip { position: relative; }
-.has-tip::after { content: attr(data-tip); display: none; position: absolute; z-index: 30; width: max-content; max-width: 260px; padding: 8px 10px; border-radius: 6px;
-  background: #26272c; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.4; text-align: left; white-space: normal; box-shadow: 0 4px 14px rgba(0,0,0,.3); pointer-events: none; }
-.has-tip:hover::after { display: block; }
-.tip-below::after { top: calc(100% + 6px); left: 0; max-width: 236px; }
-.tip-top::after { bottom: calc(100% + 10px); left: 0; max-width: 300px; }
+#gtip { position: fixed; z-index: 100000; max-width: 280px; padding: 8px 10px; border-radius: 6px; background: #26272c; color: #fff; font-size: 12px; font-weight: 400; line-height: 1.4; box-shadow: 0 4px 14px rgba(0,0,0,.35); pointer-events: none; display: none; }
 .src.import { gap: 8px; }
 .src.import svg { flex: none; color: var(--accent); }
 .importing #sources .src.on { background: transparent; border-color: transparent; }
@@ -261,7 +256,6 @@ button, input { font: inherit; color: inherit; }
 .when-pptx { display: none; }
 .imp-form[data-focus="pptx"] .when-pptx { display: inline; }
 .imp-form[data-focus="pptx"] .when-pdf { display: none; }
-.srctab:nth-child(2)::after { left: auto; right: 0; }
 .srctab::after { max-width: 210px; }
 
 /* the import form lives in the sidebar: stacked rows */

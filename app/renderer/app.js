@@ -169,7 +169,7 @@ async function focusItem(it, quiet) {
   const pv = $('pv'); $('pv-title').textContent = it.name; $('pv-meta').textContent = '';
   if (it.kind === 'placeholder' && it.status === 'empty') {
     pv.replaceChildren(h('div', { class: 'note warn' }, h('b', { text: 'This placeholder is empty. ' }),
-      'No presentation is linked to it yet. In ProPresenter drag the presentation from the Library onto this placeholder in the playlist, then click Refresh here.'));
+      'No presentation is linked to it yet. In ProPresenter drag the presentation from the Library onto this placeholder in the playlist, then click the refresh icon (top right).'));
     return;
   }
   if (it.status === 'missing') {
@@ -296,7 +296,7 @@ function renderHelp() {
     h('p', { text: 'The list shows what ProPresenter has saved in its own library. If you were sent a new .proplaylist file (for example from another computer) you have two ways to use it:' }),
     h('ol', {},
       h('li', {}, h('b', { text: 'Open it here (nothing is imported): ' }), 'click “Open .proplaylist file…” on the left and pick the file. It appears under Sources, and its presentations and media are read from inside the file.'),
-      h('li', {}, h('b', { text: 'Or import it into ProPresenter: ' }), 'double-click the .proplaylist file (or drag it onto the Playlists sidebar in ProPresenter), let ProPresenter finish, then click Refresh here. It then shows up under “ProPresenter library”.')),
+      h('li', {}, h('b', { text: 'Or import it into ProPresenter: ' }), 'double-click the .proplaylist file (or drag it onto the Playlists sidebar in ProPresenter), let ProPresenter finish, then click the refresh icon (top right). It then shows up under “ProPresenter library”.')),
     h('h3', { text: 'A placeholder is missing, or shows EMPTY' }),
     h('p', { text: 'A placeholder is a reserved spot in a playlist for something that is filled in later (for example the weekly announcements). It only appears here once it exists in a playlist that ProPresenter has saved.' }),
     h('ol', {},
@@ -551,4 +551,22 @@ function showResults(results) {
   renderHelp(); renderSources(); updateMake();
   if (!info.ok) { $('tree').replaceChildren(h('div', { class: 'note err', text: 'Engine not found: ' + info.engine })); return; }
   await selectSource(LIB);
+})();
+
+// hover descriptions: one floating box above everything, so no panel can cover or clip it
+(() => {
+  const tip = h('div', { id: 'gtip', role: 'tooltip' }); document.body.append(tip);
+  let cur = null;
+  const hide = () => { cur = null; tip.style.display = 'none'; };
+  document.addEventListener('mouseover', (e) => {
+    const el = e.target.closest && e.target.closest('[data-tip]');
+    if (!el) { hide(); return; }
+    if (el === cur) return;
+    cur = el; tip.textContent = el.dataset.tip; tip.style.display = 'block';
+    const r = el.getBoundingClientRect(), w = tip.offsetWidth, ht = tip.offsetHeight;
+    const x = Math.max(8, Math.min(r.left, innerWidth - w - 8));
+    const y = r.bottom + 6 + ht > innerHeight - 4 ? r.top - ht - 6 : r.bottom + 6;
+    tip.style.left = x + 'px'; tip.style.top = Math.max(4, y) + 'px';
+  });
+  document.addEventListener('mouseleave', hide); window.addEventListener('blur', hide); document.addEventListener('click', hide);
 })();
