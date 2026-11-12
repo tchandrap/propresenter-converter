@@ -303,6 +303,187 @@ def parse_script_pdf(path):
                         song["sections"].append(dict(label=None, lines=[]))
                     song["sections"][-1]["lines"].append(ln)
                 i += 1
+    if not res["songs"]:
+        flow = parse_script_flow(path)
+        if flow["songs"]:
+            return flow
+    return res
+
+
+
+# ---------------------------------------------------------------- scripts whose lyrics follow the order of service, in columns
+LABEL_RE = re.compile(r"^(?P<l>(?:bait|verse|chorus|chrous|chorous|pre-?\s?chorus|bridge|interlude|intro|outro|coda|end|ending|tag|refrain|reff?)\s*\d*)\s*:\s*(?:\(.*\))?\s*$", re.I)
+
+
+def _page_lines(page):
+    """One PDF page -> [(column 'L'|'R'|'F', y, text)] top to bottom. Two-column pages are told apart by many lines
+    starting at the same x on the right half; a line that runs across both columns is 'F' (full width)."""
+    fr = []
+
+    def vis(text, cm, tm, fd, fs):
+        if text and text.strip():
+            fr.append((tm[4] * cm[0] + tm[5] * cm[2] + cm[4], tm[4] * cm[1] + tm[5] * cm[3] + cm[5], text.strip()))
+    page.extract_text(visitor_text=vis)
+    width = float(page.mediabox.width)
+    rows = {}
+    for x, y, t in fr:
+        rows.setdefault(round(y / 3.0), []).append((x, y, t))
+    bins = {}
+    for x, y, t in fr:
+        if x > width * 0.35:
+            bins[round(x * 2) / 2] = bins.get(round(x * 2) / 2, 0) + 1
+    cands = [bx for bx, cnt in bins.items() if cnt >= 5]    # where the right column starts (it can differ along the page)
+    out = []
+    for k in sorted(rows, reverse=True):
+        ws = sorted(rows[k])
+        y = sum(w[1] for w in ws) / len(ws)
+        cut = next((i for i, w in enumerate(ws) if any(abs(w[0] - c) <= 1.6 for c in cands) and (i == 0 or ws[i - 1][0] < w[0] - 25)), None) if cands else None
+        if cut is None:
+            kind = "F" if (cands and len(ws) > 1 and ws[-1][0] > min(cands) + 4) or not cands else "L"
+            out.append((kind, y, " ".join(w[2] for w in ws)))
+        else:
+            if cut:
+                out.append(("L", y, " ".join(w[2] for w in ws[:cut])))
+            out.append(("R", y, " ".join(w[2] for w in ws[cut:])))
+    return out
+
+
+def _flow(path):
+    """-> the script as one list of (column, text, page, y) in reading order, text '' for an empty line."""
+    import pypdf
+    flow = []
+    for pg, page in enumerate(pypdf.PdfReader(path).pages):
+        rows = _page_lines(page)
+        if flow and flow[-1][1] != "":
+            flow.append(("F", "", pg, None))
+        i = 0
+        while i < len(rows):
+            if rows[i][0] == "F":
+                flow.append(("F", rows[i][2], pg, rows[i][1]))
+                i += 1
+                continue
+            j = i
+            while j < len(rows) and rows[j][0] != "F":
+                j += 1
+            for col in ("L", "R"):
+                if flow and flow[-1][1] != "":
+                    flow.append((col, "", pg, None))
+                prev = None
+                for kind, y, text in rows[i:j]:
+                    if kind != col:
+                        continue
+                    if prev is not None and prev - y > 30:      # an empty line is about two line heights
+                        flow.append((col, "", pg, None))
+                    flow.append((col, text, pg, y))
+                    prev = y
+            i = j
+    return flow
+
+
+def _norm(t):
+    return re.sub(r"[^a-z0-9]+", " ", re.sub(r"\(.*?\)", " ", t.lower())).strip()
+
+
+def _sections(raw):
+    """Lines of one song (with '' between paragraphs) -> [{label, lines}]. A paragraph without a label that starts like an
+    earlier section is that section sung again; any other unlabeled paragraph continues the section before it."""
+    secs, cur, para = [], None, []
+
+    def flush():
+        nonlocal cur, para
+        if not para:
+            return
+        if cur is not None and not cur["lines"]:
+            cur["lines"] = para
+        else:
+            first = _norm(para[0])
+            same = next((x for x in secs if x["lines"] and _norm(x["lines"][0]) == first), None)
+            if same is not None or cur is None:
+                cur = dict(label=(same or {}).get("label"), lines=para)
+                secs.append(cur)
+            else:
+                cur["lines"] = cur["lines"] + para
+        para = []
+    for ln in raw + [""]:
+        m = LABEL_RE.match(ln)
+        if m:
+            flush()
+            lab = re.sub(r"\s+", " ", m.group("l").lower()).replace("pre chorus", "pre-chorus")
+            cur = dict(label="interlude" if lab.startswith(("interlude", "intro")) else lab, lines=[])
+            secs.append(cur)
+        elif ln == "":
+            flush()
+        elif re.match(r"^\(.*\)$", ln):
+            continue
+        else:
+            para.append(ln)
+    return [x for x in secs if x["lines"]]
+
+
+def parse_script_flow(path):
+    """The order of service ("1. Welcoming ... JB"), then every song's lyrics in the order they are sung, listed
+    under a heading of the song's name. 'A & B' under one heading: the left column is A, the right column is B."""
+    flow = _flow(path)
+    first = [t for c, t, pg, y in flow if t][:6]
+    res = dict(title=first[0] if first else "", date=None, theme="", items=[], songs=[])
+    for l in first:
+        m = re.search(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", l)
+        if m and not res["date"] and MONTHS.get(m.group(2).lower()):
+            res["date"] = datetime.date(int(m.group(3)), MONTHS[m.group(2).lower()], int(m.group(1)))
+    cur = None
+    for c, t, pg, y in flow:
+        m = re.match(r"^(\d{1,2})\.\s+(.*)$", t)
+        if m:
+            cur = dict(no=int(m.group(1)), title=LEADER_RE.sub("", m.group(2)).strip(), body=[])
+            res["items"].append(cur)
+        elif cur is not None and t and not re.fullmatch(r"[A-Z]{2,3}", t):
+            cur["body"].append(t)
+    titles = []                                             # the songs named in the order of service, in order
+    for it in res["items"]:
+        if it["title"].lower().startswith("pujian") and ":" in it["title"]:
+            names = [x.strip() for x in it["title"].split(":", 1)[1].split("&")]
+            titles += [x for x in names if x]
+    if not titles:
+        return res
+    songs = [dict(n=i + 1, title=re.sub(r"\((\w)", lambda m: "(" + m.group(1).upper(), t), arrangement="", credits=[], sections=[], page=0, raw=[], _norm=_norm(t))
+             for i, t in enumerate(titles)]
+    pair, cur_song, k, cut, last = None, None, 0, None, None
+    for c, t, pg, y in flow:
+        hit = None
+        if t and k < len(songs):
+            nt = _norm(t)
+            if nt.startswith(songs[k]["_norm"]) and not LABEL_RE.match(t):
+                hit = 2 if (k + 1 < len(songs) and "&" in t and songs[k + 1]["_norm"] in nt) else 1
+        if hit:
+            before = (lambda col, p=pair, cs=cur_song: (p[0] if col == "L" else p[1]) if p else cs)
+            cut = (pg, y, c, before) if k else None         # lines above this heading, in the other column, still belong to the song before
+            if hit == 2:
+                pair, cur_song = (songs[k], songs[k + 1]), None
+            else:
+                pair, cur_song = None, songs[k]
+            k += hit
+            last = None
+            continue
+        if k == 0:
+            continue                                        # still the order of service
+        if y is None:
+            tgt = last
+        elif cut and pg == cut[0] and c != cut[2] and c != "F" and y > cut[1]:
+            tgt = cut[3](c)
+        elif pair is not None:
+            tgt = pair[0] if c == "L" else pair[1] if c == "R" else None
+        else:
+            tgt = cur_song
+        if tgt is not None:
+            tgt["raw"].append(t)
+        if y is not None:
+            last = tgt
+    for sg in songs:
+        sg["sections"] = _sections(sg.pop("raw"))
+        sg.pop("_norm")
+        if sum(len(x["lines"]) for x in sg["sections"]) < 2:
+            sg["sections"] = []
+    res["songs"] = songs
     return res
 
 
@@ -430,10 +611,20 @@ def parse_master_pptx(path, outdir=None):
 
 
 # ---------------------------------------------------------------- template playlist
+SONG_RE = re.compile(r"^(?P<pre>.*?)(?P<kw>pujian(?:\s+jemaat)?)\s*(?P<n>\d+)\s*(?P<s>[a-z]?)(?![a-z0-9])", re.I)
+
+
+def song_slot(name):
+    """'KU3 Pujian 2 - Ajaib', 'Pujian Jemaat 4b - X' -> ('KU3 ', 'Pujian', '2'), ...; None for other items."""
+    m = SONG_RE.match(name.strip())
+    return (m.group("pre"), m.group("kw"), m.group("n") + m.group("s").lower()) if m else None
+
+
 class Template:
     """The playlist whose look is copied: items as raw nodes, presentations as bytes."""
 
-    def __init__(self, key):
+    def __init__(self, key, hint=None):
+        self.hint = hint
         is_file = bool(key) and key.lower().endswith(".proplaylist")
         self.src = P.Source(key if is_file else None)
         self.bundle = self.src.bundle
@@ -457,8 +648,9 @@ class Template:
     def _auto(self):
         cands = []
         for p in self.src.playlists():
-            if any(i["name"].lower().startswith("pujian jemaat") for i in p["items"]):
-                cands.append((("template" in p["name"].lower()), len(p["items"]), p))
+            if any(song_slot(i["name"]) for i in p["items"] if i["kind"] != "header"):
+                same = bool(self.hint) and bool(re.search(r"\bku\s*%s\b" % re.escape(str(self.hint)), p["name"], re.I))
+                cands.append(((same, "template" in p["name"].lower()), len(p["items"]), p))
         if not cands:
             sys.exit("No template playlist found: choose a finished playlist (a .proplaylist) that has 'Pujian Jemaat' songs in it.")
         cands.sort(key=lambda c: (c[0], c[1]))
@@ -484,6 +676,15 @@ class Template:
                 return it, inf
         return None, None
 
+    def songs(self):
+        return [(it, inf) for it, inf in zip(self.items, self.infos) if inf["kind"] != "header" and song_slot(inf["name"])]
+
+    def find(self, *words):
+        for it, inf in zip(self.items, self.infos):
+            if inf["kind"] != "header" and all(w in inf["name"].lower() for w in words):
+                return it, inf
+        return None, None
+
     def starting(self, prefix):
         return [(it, inf) for it, inf in zip(self.items, self.infos) if inf["name"].lower().startswith(prefix.lower())]
 
@@ -495,7 +696,7 @@ class Parts:
         self.motions, self.title_cue, self.lyric_cue, self.song_top = [], None, None, None
         self.group_looks, self.group_blank = {}, None
         self.image_cue = self.image_look = self.image_top = None
-        for it, inf in tpl.starting("Pujian Jemaat"):
+        for it, inf in tpl.songs():
             hit = tpl.pres(inf)
             if not hit:
                 continue
@@ -576,9 +777,9 @@ def chunk(lines, n):
 
 
 def group_title(label, counters):
-    if label in ("chorus", "refrain", "reff", "ref"):
+    if label in ("chorus", "chrous", "chorous", "refrain", "reff", "ref"):
         return "Chorus"
-    if label.startswith("verse"):
+    if label.startswith(("verse", "bait")):
         num = re.sub(r"\D", "", label) or str(counters.get("verse", 0) + 1)
         counters["verse"] = int(num)
         return "Verse" if int(num) == 1 else f"Verse {num}"
@@ -766,7 +967,11 @@ def run(a):
     if not (pdf or master or a.import_khotbah):
         sys.exit("Give at least one of: the worship script (PDF), the preacher's deck (PPTX), the master deck (PPTX).")
     per = max(1, int(a.lines_per_slide or 2))
-    tpl = Template(a.template_playlist)
+    hint = None
+    if pdf:
+        mh = re.search(r"\b(?:umum|ku)\s*(\d+)\b", pdf["title"], re.I)
+        hint = mh.group(1) if mh else None
+    tpl = Template(a.template_playlist, hint)
     parts = Parts(tpl)
     work = os.path.join(P.CACHE, "import-media")
     report, notes = [], []
@@ -794,7 +999,7 @@ def run(a):
             tail = m[1].strip() if len(m) > 1 else ""
             if low.startswith("nats panggilan"):
                 nats = dict(text=" ".join(it["body"]).strip().strip("“”\" "), ref=tail)
-            elif low.startswith("bacaan alkitab"):
+            elif low.startswith("bacaan"):
                 reading = dict(ref=tail, parts=reading_parts(it["body"]))
     if master:
         nats = nats or master["nats"]
@@ -802,23 +1007,29 @@ def run(a):
             reading = master["reading"]
 
     replaced = {}
+    first_slot = song_slot(tpl.songs()[0][1]["name"]) if tpl.songs() else ("", "Pujian Jemaat", "1")
+    pre, kw = first_slot[0], first_slot[1]
     for s in songs:
-        name = f"Pujian Jemaat {s['label']} - {s['title']}"
+        name = f"{pre}{kw} {s['label']} - {s['title']}"
         b, sfiles, mnote = build_song(parts, s, per, media_root)
         pro_files[name + ".pro"] = b
         for fn, path in sfiles:
             media_files[media_root.lstrip("/") + "/" + fn] = path
         replaced[s["label"]] = name
         note = f"{sum(len(x['lines']) for x in s['sections'])} lines, {per} per slide" + (f"; {mnote}" if mnote else "")
-        if s.get("partial"):
+        if s.get("partial") and s["sections"]:
             note = "only the first lyric slide is in the master deck: add the PDF to get every lyric"
+        if not s["sections"] and not s.get("partial"):
+            s["partial"] = True
+            note = "no lyrics for this song in the PDF: only the title slide is made"
         report.append(dict(item=name, status="partial" if s.get("partial") else "generated", note=note))
 
-    nv_it, nv_inf = tpl.by_name("Votum & Nats Panggilan")
+    nv_it, nv_inf = tpl.find("votum", "nats")
+    vn_name = nv_inf["name"].strip() if nv_inf else "Votum & Nats Panggilan"
     hit = tpl.pres(nv_inf) if nv_inf and nv_inf.get("ref") else None
     if nats and nats.get("text") and hit:
-        pro_files["Votum & Nats Panggilan.pro"] = build_nats(hit[1], "Votum & Nats Panggilan", nats)
-        report.append(dict(item="Votum & Nats Panggilan", status="generated", note=nats.get("ref", "")))
+        pro_files[vn_name + ".pro"] = build_nats(hit[1], vn_name, nats)
+        report.append(dict(item=vn_name, status="generated", note=nats.get("ref", "")))
     rd_it, rd_inf = None, None
     for it, inf in zip(tpl.items, tpl.infos):
         if inf["name"].lower().startswith("bacaan") and inf.get("ref"):
@@ -852,33 +1063,42 @@ def run(a):
 
     # the playlist: the template's items in the template's order, the changed ones swapped in
     items_out, used, skip_next = [], set(), False
-    song_item = tpl.starting("Pujian Jemaat")[0][0] if tpl.starting("Pujian Jemaat") else None
+    song_item = tpl.songs()[0][0] if tpl.songs() else None
     pres_template = next((x for x, y in zip(tpl.items, tpl.infos) if y["kind"] == "presentation"), None)
+    extra_at = None                                         # where songs without a slot of their own go: the start of "Penutup"
     for it, inf in zip(tpl.items, tpl.infos):
         nm, low = inf["name"].strip(), inf["name"].strip().lower()
         if skip_next and inf["kind"] == "presentation":
             skip_next = False
             continue
         skip_next = False
-        if low.startswith("pujian jemaat") and songs:
-            m = re.match(r"pujian jemaat\s*(\d+)([a-z]?)", low)
-            label = (m.group(1) + m.group(2)) if m else None
+        slot = song_slot(nm) if inf["kind"] != "header" else None
+        if slot and songs:
+            label = slot[2]
             if label in replaced:
                 items_out.append(pres_item(it, replaced[label]))
                 used.add(label)
             continue
-        if low == "votum & nats panggilan" and "Votum & Nats Panggilan.pro" in pro_files:
+        if nv_inf is not None and nm == vn_name and vn_name + ".pro" in pro_files:
             items_out.append(pres_item(pres_template, nm) if inf["kind"] == "placeholder" else remap_ids(it))
             continue
         items_out.append(it)
+        if inf["kind"] == "header" and low == "penutup":
+            extra_at = len(items_out)
         if khot_name and low == "khotbah" and inf["kind"] != "header":
             items_out.append(pres_item(song_item or pres_template, khot_name))
             skip_next = True                                # the old preacher's deck is replaced
     extra = [s for s in songs if s["label"] not in used]
     if extra and song_item is not None:
-        last = max((i for i, x in enumerate(items_out) if item_name(x).lower().startswith("pujian jemaat")), default=len(items_out) - 1)
-        for k, s in enumerate(extra, 1):
-            items_out.insert(last + k, pres_item(song_item, replaced[s["label"]]))
+        if extra_at is not None:                            # the closing song replaces whatever song the template had before the blessing
+            k = extra_at
+            while k < len(items_out) and not item_name(items_out[k]).lower().startswith("berkat & doa"):
+                del items_out[k]
+            at = extra_at
+        else:
+            at = max((i for i, x in enumerate(items_out) if song_slot(item_name(x))), default=len(items_out) - 1) + 1
+        for k, s in enumerate(extra):
+            items_out.insert(at + k, pres_item(song_item, replaced[s["label"]]))
 
     for x in items_out:                                     # presentations that stay as they are travel inside the file
         info = P.item_info(x, 0)

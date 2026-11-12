@@ -43,6 +43,16 @@ songs = [dict(n=3), dict(n=4), dict(n=4), dict(n=5)]
 I.assign_labels(songs)
 check("song labels 3, 4, 4b, 5", [s["label"] for s in songs] == ["3", "4", "4b", "5"])
 
+# lyrics listed in the order they are sung: a repeated paragraph is the same section again, other text continues it
+raw = ["Bait:", "Bapa, Ku datang", "Ada bagiku", "", "Bait:", "Bapa, Ku datang", "Ada bagiku", "", "Reff:", "Kunyanyi", "Sungguh", "",
+       "Kunyanyi", "Sungguh Kau hebat", "", "Verse:", "Satu", "", "Dua", "", "Coda:  (Soft)", "Akhir"]
+secs = I._sections(raw)
+check("sections: labels and repeats", [x["label"] for x in secs] == ["bait", "bait", "reff", "reff", "verse", "coda"])
+check("sections: an unlabeled paragraph that starts like Reff is Reff again", secs[3]["lines"][1] == "Sungguh Kau hebat")
+check("sections: other unlabeled text continues the verse", secs[4]["lines"] == ["Satu", "Dua"])
+check("labels: Bait, Chrous, Coda name the usual groups", [I.group_title(l, {}) for l in ("bait 1", "chrous", "coda")] == ["Verse", "Chorus", "Outro"])
+check("song slots in the template", I.song_slot("KU3 Pujian 2 - Ajaib") == ("KU3 ", "Pujian", "2") and I.song_slot("Pujian Jemaat 4b - X")[2] == "4b" and I.song_slot("Pujian Persiapan Hati") is None)
+
 # protobuf: what is written reads back the same
 nodes = [(1, 0, 7), (2, 2, I.S("hello")), (3, 2, I.M([(1, 2, I.S("A580084E-8A07-4CFE-AD9C-E6E56935FCE7")), (5, 5, 1.5)])), (4, 1, 2.25)]
 back = P.parse(I.enc(nodes))
