@@ -273,4 +273,18 @@ button, input { font: inherit; color: inherit; }
 .imp-form .input.num { width: 64px; }
 .imp-form .badge { margin-left: 6px; }
 #imp-empty { padding: 28px 8px; text-align: center; }
-#view-import .imp-res { margin-top: 0; border-top: 0; padding-top: 0; }
+#view-import .imp-res, #view-sync .imp-res { margin-top: 0; border-top: 0; padding-top: 0; }
+
+/* sync */
+#sync-side { display: none; }
+.syncing #sync-side { display: block; }
+.syncing #conv-imp, .syncing #imp-side, .syncing #conv-h { display: none !important; }
+.sync-sum { display: flex; flex-wrap: wrap; gap: 8px; margin: 6px 0 12px; }
+.sync-sum .pill2 { border: 1px solid var(--line); border-radius: 999px; padding: 3px 10px; font-size: 12px; }
+.sync-sum .pill2.warn { color: var(--warn); border-color: var(--warn); }
+.sync-sum .pill2.ok { color: var(--ok); border-color: var(--ok); }
+.imp-row .chip.creator, .imp-row .chip.merged { color: var(--ok); border-color: var(--ok); }
+.imp-row .chip.review, .imp-row .chip.conflict { color: var(--warn); border-color: var(--warn); }
+.imp-row .chip.kept { color: var(--accent); border-color: var(--accent); }
+.sync-conf { margin: 0 0 4px 84px; font-size: 12px; color: var(--warn); }
+.sync-h { margin: 14px 0 4px; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }

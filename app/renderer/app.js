@@ -313,16 +313,81 @@ function renderHelp() {
 function showTab(name) {
   if (name === 'settings') renderSettings();
   if (name === 'import') { impFillTemplates(); impSync(); }
-  const imp = name === 'import';
+  if (name === 'sync') syncSync();
+  const imp = name === 'import' || name === 'sync';
   document.body.classList.toggle('importing', imp);
+  document.body.classList.toggle('syncing', name === 'sync');
   $('imp-side').dataset.focus = IMP.focus; impTarget();
-  for (const [id, on] of [['st-pro', !imp], ['st-pdf', imp && IMP.focus === 'pdf']]) { $(id).classList.toggle('on', on); $(id).setAttribute('aria-selected', on ? 'true' : 'false'); }
+  for (const [id, on] of [['st-pro', !imp], ['st-pdf', name === 'import' && IMP.focus === 'pdf'], ['st-sync', name === 'sync']]) { $(id).classList.toggle('on', on); $(id).setAttribute('aria-selected', on ? 'true' : 'false'); }
   document.querySelectorAll('.tab').forEach((b) => b.classList.toggle('on', b.dataset.tab === name));
   document.querySelectorAll('.view').forEach((v) => v.classList.toggle('on', v.id === 'view-' + name));
 }
 document.querySelectorAll('.tab').forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
 $('st-pro').onclick = () => { if (document.body.classList.contains('importing')) showTab('playlist'); };
 $('st-pdf').onclick = () => { IMP.focus = 'pdf'; showTab('import'); };
+$('st-sync').onclick = () => showTab('sync');
+
+// ------------------------------------------------------------------ sync: the creators' playlist into this computer's ProPresenter
+const SYNC = { file: '', prefer: 'operator', local: '', busy: false, res: null };
+function syncSync() {
+  $('sync-file').textContent = SYNC.file ? baseName(SYNC.file) : 'No file chosen (.proplaylist only)'; $('sync-file').title = SYNC.file;
+  $('sync-x').hidden = !SYNC.file;
+  $('sync-prefer').value = SYNC.prefer;
+  $('sync-check').disabled = SYNC.busy || !SYNC.file;
+  $('sync-check-wrap').classList.toggle('blocked', !SYNC.busy && !SYNC.file);
+  $('sync-tip').replaceChildren(h('b', { text: 'Not ready yet' }), h('div', { text: 'Choose the playlist file from the creators.' }));
+  $('sync-busy').hidden = !SYNC.busy;
+  for (const id of ['sync-pick', 'sync-prefer', 'sync-local']) $(id).disabled = SYNC.busy;
+}
+const SYNC_CHIP = { 'creator changed': ['creator', 'from creator'], new: ['creator', 'new'], 'operator changed': ['kept', 'kept'], merged: ['merged', 'merged'],
+  'merged with conflicts': ['conflict', 'conflict'], 'first sync: differs': ['review', 'differs'], same: ['', 'same'] };
+function syncShow(res) {
+  const box = $('sync-result'); box.hidden = false; box.className = 'imp-res'; box.replaceChildren(); $('sync-empty').hidden = true;
+  $('sync-local-row').hidden = !(res.candidates && res.candidates.length);
+  if (res.candidates && res.candidates.length) {
+    $('sync-local').replaceChildren(h('option', { value: '', text: 'Choose one…' }), ...res.candidates.map((c) => h('option', { value: c.uuid, text: `${c.items} items · …${c.uuid.slice(-6)}` })));
+  }
+  if (res.error) { box.append(h('div', { class: 'note err', text: res.error })); return; }
+  const sm = res.summary;
+  box.append(h('h3', { text: res.applied ? `Updated: ${res.playlist}` : `${res.playlist}: what would change` }));
+  if (res.first_sync) box.append(h('div', { class: 'note imp-notes', text: 'First time for this playlist: there is no earlier copy to compare with, so anything that differs is left as it is at church and listed here. From the next time on, changes by the creator and by the operator are told apart.' }));
+  const pill = (n, text, cls) => h('span', { class: 'pill2 ' + (n ? cls : ''), text: `${text}: ${n}` });
+  box.append(h('div', { class: 'sync-sum' }, pill(sm.creator, 'From the creator', 'ok'), pill(sm.operator, 'Kept from the operator', 'ok'), pill(sm.merged, 'Merged', 'ok'), pill(sm.conflicts, 'Conflicts', 'warn'), pill(sm.review, 'To review', 'warn'), h('span', { class: 'pill2', text: `Unchanged: ${sm.same}` })));
+  const changed = res.presentations.filter((r) => r.status !== 'same' && r.status !== 'not in the file');
+  if (changed.length) box.append(h('div', { class: 'sync-h', text: 'Songs and slides' }));
+  for (const r of changed) {
+    const c = SYNC_CHIP[r.status] || ['review', r.status];
+    box.append(h('div', { class: 'imp-row' }, h('span', { class: 'chip ' + c[0], text: c[1] }), h('span', { class: 'nm', text: r.item })));
+    for (const x of r.conflicts) box.append(h('div', { class: 'sync-conf', text: `Both changed the ${x.kind} “${x.name}”: the ${x.kept}’s version is kept.` }));
+  }
+  const items = res.items.filter((r) => r.status !== 'same' && r.status !== 'kept (operator)' && r.kind !== 'header');
+  if (items.length) {
+    box.append(h('div', { class: 'sync-h', text: 'Playlist order and items' }));
+    for (const r of items) box.append(h('div', { class: 'imp-row' }, h('span', { class: 'chip ' + (r.conflict ? 'conflict' : 'merged'), text: r.status.startsWith('new') ? 'new' : r.status.startsWith('added') ? 'church' : r.conflict ? 'conflict' : 'changed' }), h('span', { class: 'nm', text: r.item }), h('span', { class: 'muted', text: r.status })));
+  }
+  if (res.media_to_copy) box.append(h('div', { class: 'note imp-notes', text: `${res.media_to_copy} media file(s) are not in ProPresenter yet and will be copied. Files that are already there are skipped.` }));
+  if (res.media_missing && res.media_missing.length) box.append(h('div', { class: 'note warn imp-notes' }, h('b', { text: 'Not in the creators’ file' }), ...res.media_missing.slice(0, 6).map((m) => h('div', { text: '• ' + m }))));
+  if (!changed.length && !items.length && !res.applied) box.append(h('div', { class: 'note imp-notes', text: 'Nothing to update: ProPresenter already has everything in this file.' }));
+  const act = h('div', { class: 'imp-actions' });
+  if (res.applied) {
+    act.append(h('span', { class: 'ok', text: '✓ ProPresenter is updated. Open it to see the changes.' }),
+      h('button', { class: 'btn', text: 'Show the backup', onclick: () => window.pp.reveal(res.backup) }));
+  } else if (changed.length || items.length || res.first_sync || res.media_to_copy) {
+    act.append(h('button', { class: 'btn primary', text: 'Update ProPresenter', onclick: () => syncRun(true) }),
+      h('span', { class: 'muted', text: 'ProPresenter must be closed. The files that change are backed up first.' }));
+  }
+  box.append(act);
+}
+async function syncRun(apply) {
+  SYNC.busy = true; syncSync();
+  const res = await window.pp.syncRun({ file: SYNC.file, prefer: SYNC.prefer, local: $('sync-local').value || SYNC.local, apply: !!apply });
+  SYNC.busy = false; SYNC.res = res; syncSync(); syncShow(res);
+  if (apply && res.error) $('sync-result').append(h('div', { class: 'note', text: 'Nothing was changed. Fix the problem above and press the button again.' }));
+}
+$('sync-pick').onclick = async () => { const f = await window.pp.pickInput('sync'); if (f) { SYNC.file = f; SYNC.local = ''; $('sync-local-row').hidden = true; syncSync(); } };
+$('sync-x').onclick = () => { SYNC.file = ''; $('sync-result').hidden = true; $('sync-empty').hidden = false; $('sync-local-row').hidden = true; syncSync(); };
+$('sync-prefer').onchange = () => { SYNC.prefer = $('sync-prefer').value; };
+$('sync-check').onclick = () => syncRun(false);
 
 // ------------------------------------------------------------------ import: playlist from a worship script and decks
 const IMP = { pdf: '', khotbah: '', master: '', template: '', lines: 2, busy: false, last: null, focus: 'pdf', target: false };

@@ -28,7 +28,7 @@ let cancelled = false;
 
 // ---- small config file (last output folder, formats, recent .proplaylist files)
 const cfgPath = () => path.join(app.getPath('userData'), 'config.json');
-const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', recent: [], ppRoot: '', theme: '', importDir: '', importTemplate: '', importLines: 2, pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
+const CFG_DEFAULTS = { mp4: true, pdf: false, outdir: '', recent: [], ppRoot: '', theme: '', importDir: '', syncDir: '', syncPrefer: 'operator', importTemplate: '', importLines: 2, pictureSeconds: 5, overrideAll: false, allSeconds: 10, noVideoHold: true };
 function readCfg() {
   try {
     const saved = JSON.parse(fs.readFileSync(cfgPath(), 'utf8'));
@@ -177,10 +177,12 @@ ipcMain.handle('pick-input', async (_e, kind) => {
   const spec = {
     pdf: { title: 'Choose the worship script (PDF)', filters: [{ name: 'PDF', extensions: ['pdf'] }] },
     pptx: { title: 'Choose a PowerPoint deck', filters: [{ name: 'PowerPoint', extensions: ['pptx'] }] },
+    sync: { title: 'Choose the playlist from the creators (.proplaylist)', filters: [{ name: 'ProPresenter playlist', extensions: ['proplaylist'] }] },
     template: { title: 'Choose a finished playlist to copy the look from', filters: [{ name: 'ProPresenter playlist', extensions: ['proplaylist'] }] },
   }[kind];
   if (!spec) return null;
-  const r = await dialog.showOpenDialog(win, { ...spec, properties: ['openFile'], defaultPath: readCfg().importDir || app.getPath('downloads') });
+  const r = await dialog.showOpenDialog(win, { ...spec, properties: ['openFile'], defaultPath: (kind === 'sync' && readCfg().syncDir) || readCfg().importDir || app.getPath('downloads') });
+  if (!r.canceled && kind === 'sync') writeCfg({ ...readCfg(), syncDir: path.dirname(r.filePaths[0]) });
   return r.canceled ? null : r.filePaths[0];
 });
 
@@ -198,6 +200,15 @@ ipcMain.handle('import-run', async (_e, o) => {
   try { return { ...JSON.parse(r.out), tmp }; } catch { return { error: 'The engine returned unreadable data.' }; }
 });
 
+// Bring this computer's ProPresenter up to date from the creators' playlist: the plan first, then (apply) the update.
+ipcMain.handle('sync-run', async (_e, o) => {
+  const args = ['--sync', o.file, '--json', '--sync-prefer', o.prefer === 'creator' ? 'creator' : 'operator'];
+  if (o.local) args.push('--sync-local-uuid', o.local);
+  if (o.apply) args.push('--sync-apply');
+  const r = await runEngine(args, { track: true });
+  if (r.code !== 0) return { error: lastLine(r.err) || lastLine(r.out) || 'Could not compare the playlist.' };
+  try { return JSON.parse(r.out); } catch { return { error: 'The engine returned unreadable data.' }; }
+});
 ipcMain.handle('import-save', async (_e, { tmp, name }) => {
   if (!tmp || !fs.existsSync(tmp)) return { error: 'The built playlist is gone. Create it again.' };
   const safe = String(name || 'KU').replace(/[\\/:*?"<>|]+/g, '-');

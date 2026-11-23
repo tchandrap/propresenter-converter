@@ -1248,7 +1248,7 @@ def main():
         import ppimport, ppsync
         ppimport.init(sys.modules[__name__])
         ppsync.init(sys.modules[__name__], ppimport)
-        state = os.path.expanduser(a.sync_state or "~/Library/Application Support/SlideBridge/sync")
+        state = os.path.expanduser(a.sync_state or os.environ.get("PP2MP4_SYNC_STATE") or "~/Library/Application Support/SlideBridge/sync")
         res = ppsync.run(a.sync, PP_ROOT, state, apply=a.sync_apply, prefer=a.sync_prefer, playlist=a.playlist, allow_running=a.sync_allow_running, local_uuid=a.sync_local_uuid)
         if a.json:
             print(json.dumps(res, indent=1))

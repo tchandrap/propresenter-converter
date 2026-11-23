@@ -16,6 +16,7 @@ contextBridge.exposeInMainWorld('pp', {
   pickInput: (kind) => ipcRenderer.invoke('pick-input', kind),
   importRun: (o) => ipcRenderer.invoke('import-run', o),
   importSave: (o) => ipcRenderer.invoke('import-save', o),
+  syncRun: (o) => ipcRenderer.invoke('sync-run', o),
   ppInfo: () => ipcRenderer.invoke('pp:info'),
   ppPick: () => ipcRenderer.invoke('pp:pick'),
   onProgress: (cb) => ipcRenderer.on('progress', (_e, p) => cb(p)),

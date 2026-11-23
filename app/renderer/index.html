@@ -15,8 +15,9 @@
     <div class="srctabs" role="tablist" aria-label="Where the slides come from">
       <button id="st-pro" class="srctab on has-tip tip-below" role="tab" aria-selected="true" type="button" data-tip="Slides that are already in ProPresenter: your library, or a .proplaylist file. Convert them to a PDF or a video (MP4)."><svg viewBox="0 0 28 24" width="28" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="22" height="14" rx="2.5"/><path d="M12 7.5v5l4.5-2.5z" fill="currentColor"/><path d="M14 17v4M9 21.5h10"/></svg><span>ProPresenter</span></button>
       <button id="st-pdf" class="srctab has-tip tip-below" role="tab" aria-selected="false" type="button" data-tip="A worship script as a PDF (with an optional sermon deck and master deck). Convert it to a ProPresenter playlist."><svg viewBox="0 0 28 24" width="28" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M7 1.5h10l5 5V22H7z"/><path d="M17 1.5v5h5"/><rect x="2" y="11.5" width="15" height="7.5" rx="1.6" fill="#e5322d" stroke="none"/><text x="9.5" y="17.2" font-size="5.8" text-anchor="middle" fill="#fff" stroke="none" font-weight="700" font-family="Helvetica,Arial,sans-serif">PDF</text></svg><span>PDF</span></button>
+      <button id="st-sync" class="srctab has-tip tip-below" role="tab" aria-selected="false" type="button" data-tip="Update this computer's ProPresenter from a playlist the creators made at home, without overwriting what the operator changed at church."><svg viewBox="0 0 28 24" width="28" height="24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M21 9a8 8 0 0 0-14-2.5L5 9M5 4v5h5"/><path d="M7 15a8 8 0 0 0 14 2.5L23 15M23 20v-5h-5"/></svg><span>Sync</span></button>
     </div>
-    <div class="side-h">Convert to</div>
+    <div id="conv-h" class="side-h">Convert to</div>
     <div id="conv-pro" class="pp-tabs conv" role="group" aria-label="Convert to">
       <button id="fmt-pdf" class="pp-tab has-tip tip-below" type="button" aria-pressed="false" data-tip="Turn ProPresenter slides into a PDF, one page per slide. A video becomes a still picture: you choose which moment."><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M9.5 12h6M9.5 15.5h6"/></svg><span>PDF</span></button>
       <button id="fmt-mp4" class="pp-tab has-tip tip-below" type="button" aria-pressed="false" data-tip="Turn ProPresenter slides into a video (MP4, 1920×1080). Videos keep their sound. You set how long each slide stays."><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M10 9.5v5l4.5-2.5z" fill="currentColor"/></svg><span>MP4</span></button>
@@ -43,6 +44,15 @@
         <div class="srow"><span class="k">Copy the look from:</span><div class="v"><select id="imp-template" class="input"></select></div></div>
         <div class="srow"><span class="k">Lines per slide:</span><div class="v"><input id="imp-lines" class="input num" type="number" min="1" max="8" step="1" value="2"><span class="muted">lyric lines on each song slide</span></div></div>
         <div class="srow"><span class="k"></span><div class="v"><span id="imp-make-wrap" class="tipwrap"><button id="imp-make" class="btn primary" disabled>Create playlist…</button><span id="imp-tip" class="tip" role="tooltip"></span></span><button id="imp-cancel" class="btn danger" hidden>Cancel</button><span id="imp-busy" class="muted" hidden>Building…</span></div></div>
+    </div>
+    <div id="sync-side" class="imp-form">
+      <div class="pp-h spaced">Creator's playlist</div>
+      <div class="srow"><span class="k">File:</span><div class="v"><span id="sync-file" class="pp-path"></span><button id="sync-pick" class="btn" title="Only ProPresenter playlist files (.proplaylist) can be chosen">Browse…</button><button id="sync-x" class="btn ghost" hidden>Clear</button></div></div>
+      <div class="srow"><span class="k"></span><div class="muted line">ProPresenter playlist files only (.proplaylist): the whole file the creators put in Google Drive.</div></div>
+      <div class="pp-h spaced">If both changed the same slide</div>
+      <div class="srow"><span class="k">Keep:</span><div class="v"><select id="sync-prefer" class="input"><option value="operator">The operator's version (recommended)</option><option value="creator">The creator's version</option></select></div></div>
+      <div id="sync-local-row" class="srow" hidden><span class="k">Playlist at church:</span><div class="v"><select id="sync-local" class="input"></select></div></div>
+      <div class="srow"><span class="k"></span><div class="v"><span id="sync-check-wrap" class="tipwrap"><button id="sync-check" class="btn primary" disabled>Check changes</button><span id="sync-tip" class="tip" role="tooltip"></span></span><span id="sync-busy" class="muted" hidden>Comparing…</span></div></div>
     </div>
     <div id="pro-block">
       <div id="sources"></div>
@@ -93,6 +103,13 @@
       <div class="settings imp">
         <div id="imp-empty" class="muted"></div>
         <div id="imp-result" hidden></div>
+      </div>
+    </section>
+
+    <section id="view-sync" class="view">
+      <div class="settings imp">
+        <div id="sync-empty" class="muted">Choose the playlist the creators sent, on the left, then check the changes.</div>
+        <div id="sync-result" hidden></div>
       </div>
     </section>
 
