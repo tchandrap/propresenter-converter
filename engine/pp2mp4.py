@@ -1202,6 +1202,12 @@ def main():
     ap.add_argument("--template-playlist", metavar="NAME_OR_FILE", help="playlist whose look is copied: a .proplaylist file or a ProPresenter playlist name (default: the newest 'Template' playlist with songs)")
     ap.add_argument("--playlist-name", metavar="NAME", help="name of the new playlist (default: KU - yyyymmdd)")
     ap.add_argument("--lines-per-slide", type=int, default=2, metavar="N", help="lyric lines per slide (default 2)")
+    ap.add_argument("--sync", metavar="FILE", help="compare the creator's .proplaylist with this computer's ProPresenter and merge it in, keeping the operator's changes (shows the plan; add --sync-apply to write)")
+    ap.add_argument("--sync-apply", action="store_true", help="with --sync: really update ProPresenter (it must be closed; the replaced files are backed up first)")
+    ap.add_argument("--sync-state", metavar="DIR", help="where --sync keeps what the last sync saw (default: ~/Library/Application Support/SlideBridge/sync)")
+    ap.add_argument("--sync-prefer", choices=["operator", "creator"], default="operator", help="who wins when both changed the same slide (default operator)")
+    ap.add_argument("--sync-local-uuid", metavar="ID", help="with --sync: which of several same-named playlists at church to update")
+    ap.add_argument("--sync-allow-running", action="store_true", help="skip the check that ProPresenter is closed (for tests on a copy of the workspace)")
     ap.add_argument("--proplaylist", metavar="FILE", help="read playlists from this .proplaylist file (no import needed)")
     ap.add_argument("--playlists", action="store_true", help="show the playlist tree with numbered items")
     ap.add_argument("--placeholders", action="store_true", help="list every placeholder and the playlist it belongs to")
@@ -1237,6 +1243,33 @@ def main():
             a.settings = {int(k): v for k, v in json.load(open(a.slide_settings)).items()}
         except Exception as ex:
             sys.exit(f"Could not read --slide-settings: {ex}")
+
+    if a.sync:
+        import ppimport, ppsync
+        ppimport.init(sys.modules[__name__])
+        ppsync.init(sys.modules[__name__], ppimport)
+        state = os.path.expanduser(a.sync_state or "~/Library/Application Support/SlideBridge/sync")
+        res = ppsync.run(a.sync, PP_ROOT, state, apply=a.sync_apply, prefer=a.sync_prefer, playlist=a.playlist, allow_running=a.sync_allow_running, local_uuid=a.sync_local_uuid)
+        if a.json:
+            print(json.dumps(res, indent=1))
+        else:
+            sm = res.get("summary") or dict(creator=0, operator=0, merged=0, same=0, conflicts=0, review=0)
+            res.setdefault("applied", False); res.setdefault("first_sync", False); res.setdefault("presentations", []); res.setdefault("items", [])
+            print(("updated" if res["applied"] else "plan for") + f" '{res['playlist']}'" + ("  (first sync: no earlier copy to compare with)" if res["first_sync"] else ""))
+            print(f"  from the creator: {sm['creator']}   kept from the operator: {sm['operator']}   merged: {sm['merged']}   same: {sm['same']}   conflicts: {sm['conflicts']}   to review: {sm['review']}")
+            for r in res["presentations"]:
+                if r["status"] != "same":
+                    print(f"  {r['status']:24s} {r['item']}" + "".join(f"\n      conflict in {c['kind']} '{c['name']}': {c['kept']}'s version kept" for c in r["conflicts"]))
+            for r in res["items"]:
+                if r["status"] != "same":
+                    print(f"  item {r['status']:30s} {r['item']}")
+            if res.get("error"):
+                print("  ERROR:", res["error"])
+                for c in res.get("candidates", []):
+                    print(f"    {c['uuid']}  ({c['items']} items)")
+            if res.get("backup"):
+                print("  backup:", res["backup"])
+        return
 
     if a.import_script or a.import_khotbah or a.import_master:
         if not a.import_out:

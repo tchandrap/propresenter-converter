@@ -66,3 +66,19 @@ Actions then builds the Apple Silicon and Intel `.dmg` files and attaches them t
 MIT, see [LICENSE](LICENSE).
 
 SlideBridge is an independent tool. It is not affiliated with or endorsed by Renewed Vision; ProPresenter is a trademark of Renewed Vision.
+
+## Keeping the church computer in step (prototype, command line)
+
+Creators edit at home and upload a whole `.proplaylist`; the operator changes songs and arrangements at church. `--sync`
+merges the two instead of overwriting:
+
+```
+python3 engine/pp2mp4.py --sync "KU3 - 20261115.proplaylist"                # the plan: nothing is written
+python3 engine/pp2mp4.py --sync "KU3 - 20261115.proplaylist" --sync-apply   # update (ProPresenter must be closed)
+```
+
+For every playlist item and every slide, group and arrangement it compares the creator's new file, ProPresenter now, and
+the creator's file from the last sync (kept in `~/Library/Application Support/SlideBridge/sync`). Only the creator changed
+it: theirs. Only the operator: kept. Both: a conflict, the operator's version stays (`--sync-prefer creator` flips it).
+The replaced files are backed up first. If several playlists at church share the name, pass `--sync-local-uuid`.
+Not yet tried against a running ProPresenter, and there is no screen for it in the app.
